@@ -3,17 +3,13 @@
 #include "osm.h"
 
 #define LOOP_UNROLLING 10
-#define HUNDRED_K 100000
+#define ITERATIONS 10000000
 
-double calculate_time_diff (timeval *start_time, timeval *end_time)
+long calculate_time_diff (timeval *start_time, timeval *end_time)
 {
-  double start =
-      (double) ((start_time->tv_sec * 10 ^ 9) +
-                (start_time->tv_usec * 10 ^ 3));
-  double end =
-      (double) ((end_time->tv_sec * 10 ^ 9) +
-                (end_time->tv_usec * 10 ^ 3));
-  return end - start;
+  long start = (long) ((double) start_time->tv_sec * (1e6) + (double) start_time->tv_usec);
+  long end = (long) ((double) end_time->tv_sec * (1e6) + (double) end_time->tv_usec);
+  return (long) 1e3 * (end - start);
 }
 
 double osm_operation_time (unsigned int iterations)
@@ -24,24 +20,25 @@ double osm_operation_time (unsigned int iterations)
   }
   unsigned int epochs = iterations / LOOP_UNROLLING;
   timeval start_time, end_time;
-  double time_diff = 0;
+  long time_diff = 0;
   for (unsigned int i = 0; i < epochs; i++)
   {
-    gettimeofday (&start_time, nullptr);
-    1 + 1;
-    1 + 1;
-    1 + 1;
-    1 + 1;
-    1 + 1;
-    1 + 1;
-    1 + 1;
-    1 + 1;
-    1 + 1;
-    1 + 1;
-    gettimeofday (&end_time, nullptr);
+    unsigned int j = 0;
+    gettimeofday (&start_time, NULL);
+    j += 1;
+    j += 1;
+    j += 1;
+    j += 1;
+    j += 1;
+    j += 1;
+    j += 1;
+    j += 1;
+    j += 1;
+    j += 1;
+    gettimeofday (&end_time, NULL);
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
-  return time_diff / (double) iterations;
+  return (double) time_diff / (double) iterations;
 }
 
 void null_function ()
@@ -55,10 +52,10 @@ double osm_function_time (unsigned int iterations)
   }
   unsigned int epochs = iterations / LOOP_UNROLLING;
   timeval start_time, end_time;
-  double time_diff = 0;
+  long time_diff = 0;
   for (unsigned int i = 0; i < epochs; i++)
   {
-    gettimeofday (&start_time, nullptr);
+    gettimeofday (&start_time, NULL);
     null_function ();
     null_function ();
     null_function ();
@@ -69,10 +66,10 @@ double osm_function_time (unsigned int iterations)
     null_function ();
     null_function ();
     null_function ();
-    gettimeofday (&end_time, nullptr);
+    gettimeofday (&end_time, NULL);
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
-  return time_diff / (double) iterations;
+  return (double) time_diff / (double) iterations;
 }
 
 double osm_syscall_time (unsigned int iterations)
@@ -83,10 +80,10 @@ double osm_syscall_time (unsigned int iterations)
   }
   unsigned int epochs = iterations / LOOP_UNROLLING;
   timeval start_time, end_time;
-  double time_diff = 0;
+  long time_diff = 0;
   for (unsigned int i = 0; i < epochs; i++)
   {
-    gettimeofday (&start_time, nullptr);
+    gettimeofday (&start_time, NULL);
     OSM_NULLSYSCALL;
     OSM_NULLSYSCALL;
     OSM_NULLSYSCALL;
@@ -97,26 +94,23 @@ double osm_syscall_time (unsigned int iterations)
     OSM_NULLSYSCALL;
     OSM_NULLSYSCALL;
     OSM_NULLSYSCALL;
-    gettimeofday (&end_time, nullptr);
+    gettimeofday (&end_time, NULL);
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
-  return time_diff / (double) iterations;
+  return (double) time_diff / (double) iterations;
 }
 
 void run_file (unsigned int num_iterations)
 {
   std::cout << "Iterations: " << num_iterations << std::endl;
-  std::cout << "arithmetic result: ";
-  std::cout << osm_operation_time (num_iterations) << std::endl;
-  std::cout << "null function result: ";
-  std::cout << osm_function_time (num_iterations) << std::endl;
-  std::cout << "syscall result: ";
-  std::cout << osm_syscall_time (num_iterations) << std::endl;
+  std::cout << "Arithmetic Operation Time: " << osm_operation_time (num_iterations) << std::endl;
+  std::cout << "Function Call Time: " << osm_function_time (num_iterations) << std::endl;
+  std::cout << "System Call Time: " << osm_syscall_time (num_iterations) << std::endl;
 }
 
 int main ()
 {
-  run_file (HUNDRED_K);
-  run_file (2 * HUNDRED_K);
+  run_file (ITERATIONS);
+  run_file (2 * ITERATIONS);
   return 0;
 }
