@@ -1,0 +1,25 @@
+shaharspencer,n318162971
+
+shahar spencer, ID 208067017
+nadav eliash, ID 318162971
+
+exercise 1
+
+
+
+Assignment 1
+1. create a new directry called welcmoe_dir_1
+2. create a subdirectory under (1) called welcome_dir_2
+3. create and open a file under (2) called welcome_file.txt
+4. open an existing file under (2) called /etc/timezone which "stores the  local system time depending on
+the time zone that was selected while configuring our system" (according to google).
+5. the next two lines check the status of (4) //TODO fstat, lseek
+6. close (4)
+7. //ToDo
+8. write to (3) the sentence "WELCOME TO OS-2023" //todo
+9. close (3)
+10. delete (3)
+11. delete (2)
+12. delete (1)
+13. return 0
+
