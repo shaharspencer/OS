@@ -5,11 +5,11 @@
 #define LOOP_UNROLLING 10
 #define ITERATIONS 10000000
 
-long calculate_time_diff (timeval *start_time, timeval *end_time)
+long calculate_time_diff (timeval* start_time, timeval* end_time)
 {
-  long start = (long) ((double) start_time->tv_sec * (1e6) + (double) start_time->tv_usec);
-  long end = (long) ((double) end_time->tv_sec * (1e6) + (double) end_time->tv_usec);
-  return (long) 1e3 * (end - start);
+  double start = (double)(start_time->tv_sec) * (1e6) + (double)(start_time->tv_usec);
+  double end = (double)(end_time->tv_sec) * (1e6) + (double)(end_time->tv_usec);
+  return (long)(1e3 * (end - start));
 }
 
 double osm_operation_time (unsigned int iterations)
