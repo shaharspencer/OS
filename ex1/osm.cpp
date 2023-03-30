@@ -4,6 +4,7 @@
 
 #define LOOP_UNROLLING 10
 #define ITERATIONS 10000000
+#define ERROR_CODE -1
 
 double calculate_time_diff (timeval* start_time, timeval* end_time)
 {
@@ -16,7 +17,7 @@ double osm_operation_time (unsigned int iterations)
 {
   if (iterations == 0)
   {
-    return -1;
+    return ERROR_CODE;
   }
   unsigned int epochs = iterations / LOOP_UNROLLING;
   timeval start_time, end_time;
@@ -27,7 +28,7 @@ double osm_operation_time (unsigned int iterations)
     int ok = gettimeofday (&start_time, NULL);
     if (!ok)
     {
-      return -1;
+      return ERROR_CODE;
     }
     j += 1;
     j += 1;
@@ -42,7 +43,7 @@ double osm_operation_time (unsigned int iterations)
     ok = gettimeofday (&end_time, NULL);
     if (!ok)
     {
-      return -1;
+      return ERROR_CODE;
     }
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
@@ -56,7 +57,7 @@ double osm_function_time (unsigned int iterations)
 {
   if (iterations == 0)
   {
-    return -1;
+    return ERROR_CODE;
   }
   unsigned int epochs = iterations / LOOP_UNROLLING;
   timeval start_time, end_time;
@@ -66,7 +67,7 @@ double osm_function_time (unsigned int iterations)
     int ok = gettimeofday (&start_time, NULL);
     if (!ok)
     {
-      return -1;
+      return ERROR_CODE;
     }
     null_function ();
     null_function ();
@@ -81,7 +82,7 @@ double osm_function_time (unsigned int iterations)
     ok = gettimeofday (&end_time, NULL);
     if (!ok)
     {
-      return -1;
+      return ERROR_CODE;
     }
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
@@ -92,7 +93,7 @@ double osm_syscall_time (unsigned int iterations)
 {
   if (iterations == 0)
   {
-    return -1;
+    return ERROR_CODE;
   }
   unsigned int epochs = iterations / LOOP_UNROLLING;
   timeval start_time, end_time;
@@ -102,7 +103,7 @@ double osm_syscall_time (unsigned int iterations)
     int ok = gettimeofday (&start_time, NULL);
     if (!ok)
     {
-      return -1;
+      return ERROR_CODE;
     }
     OSM_NULLSYSCALL;
     OSM_NULLSYSCALL;
@@ -117,7 +118,7 @@ double osm_syscall_time (unsigned int iterations)
     ok = gettimeofday (&end_time, NULL);
     if (!ok)
     {
-      return -1;
+      return ERROR_CODE;
     }
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
@@ -127,9 +128,27 @@ double osm_syscall_time (unsigned int iterations)
 void run_file (unsigned int num_iterations)
 {
   std::cout << "Iterations: " << num_iterations << std::endl;
-  std::cout << "Arithmetic Operation Time: " << osm_operation_time (num_iterations) << std::endl;
-  std::cout << "Function Call Time: " << osm_function_time (num_iterations) << std::endl;
-  std::cout << "System Call Time: " << osm_syscall_time (num_iterations) << std::endl;
+  double time = osm_operation_time (num_iterations);
+  if (time == ERROR_CODE)
+  {
+      std::cout << "Error" << std::endl;
+      return;
+  }
+  std::cout << "Arithmetic Operation Time: " << time << std::endl;
+  time = osm_function_time (num_iterations);
+  if (time == ERROR_CODE)
+  {
+    std::cout << "Error" << std::endl;
+    return;
+  }
+  std::cout << "Function Call Time: " << time << std::endl;
+  time = osm_syscall_time (num_iterations);
+  if (time == ERROR_CODE)
+  {
+    std::cout << "Error" << std::endl;
+    return;
+  }
+  std::cout << "System Call Time: " << time << std::endl;
 }
 
 int main ()
