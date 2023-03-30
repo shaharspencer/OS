@@ -26,7 +26,7 @@ double osm_operation_time (unsigned int iterations)
   {
     unsigned int j = 0;
     int ok = gettimeofday (&start_time, NULL);
-    if (!ok)
+    if (ok)
     {
       return ERROR_CODE;
     }
@@ -41,7 +41,7 @@ double osm_operation_time (unsigned int iterations)
     j += 1;
     j += 1;
     ok = gettimeofday (&end_time, NULL);
-    if (!ok)
+    if (ok)
     {
       return ERROR_CODE;
     }
@@ -65,7 +65,7 @@ double osm_function_time (unsigned int iterations)
   for (unsigned int i = 0; i < epochs; i++)
   {
     int ok = gettimeofday (&start_time, NULL);
-    if (!ok)
+    if (ok)
     {
       return ERROR_CODE;
     }
@@ -80,7 +80,7 @@ double osm_function_time (unsigned int iterations)
     null_function ();
     null_function ();
     ok = gettimeofday (&end_time, NULL);
-    if (!ok)
+    if (ok)
     {
       return ERROR_CODE;
     }
@@ -101,7 +101,7 @@ double osm_syscall_time (unsigned int iterations)
   for (unsigned int i = 0; i < epochs; i++)
   {
     int ok = gettimeofday (&start_time, NULL);
-    if (!ok)
+    if (ok)
     {
       return ERROR_CODE;
     }
@@ -116,7 +116,7 @@ double osm_syscall_time (unsigned int iterations)
     OSM_NULLSYSCALL;
     OSM_NULLSYSCALL;
     ok = gettimeofday (&end_time, NULL);
-    if (!ok)
+    if (ok)
     {
       return ERROR_CODE;
     }
