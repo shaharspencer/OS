@@ -1,19 +1,17 @@
 shaharspencer,n318162971
+Shahar Spencer (208067017), Nadav Elan Eliash (318162971)
+EX: 1
 
-Shahar Spencer, ID 208067017
-Nadav Elan Eliash, ID 318162971
-
-Exercise 1
-==========
-Files:
-- README: current file
-- osm.cpp: Source file implementing statistics functions for operations,
+FILES:
+README -- current file
+osm.cpp -- Source file implementing statistics functions for operations,
            function and system calls times
-- Makefile: a makefile for compiling osm.cpp
-- results.png: A graph showing OSM results for Terminal, VM and Container
+Makefile -- a makefile for compiling osm.cpp
+runtimes.png -- A graph showing OSM results for Terminal, VM and Container
 
-Assignment 1
-============
+ANSWERS:
+
+Q1:
 1. Create a new directory called "welcome_dir_1"
 2. Create a subdirectory under (1) called "welcome_dir_2"
 3. Create and open a file under (2) called "welcome_file.txt"
