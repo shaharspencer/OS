@@ -5,11 +5,11 @@
 #define LOOP_UNROLLING 10
 #define ITERATIONS 10000000
 
-long calculate_time_diff (timeval* start_time, timeval* end_time)
+double calculate_time_diff (timeval* start_time, timeval* end_time)
 {
   double start = (double)(start_time->tv_sec) * (1e6) + (double)(start_time->tv_usec);
   double end = (double)(end_time->tv_sec) * (1e6) + (double)(end_time->tv_usec);
-  return (long)(1e3 * (end - start));
+  return 1e3 * (end - start);
 }
 
 double osm_operation_time (unsigned int iterations)
@@ -20,7 +20,7 @@ double osm_operation_time (unsigned int iterations)
   }
   unsigned int epochs = iterations / LOOP_UNROLLING;
   timeval start_time, end_time;
-  long time_diff = 0;
+  double time_diff = 0;
   for (unsigned int i = 0; i < epochs; i++)
   {
     unsigned int j = 0;
@@ -38,7 +38,7 @@ double osm_operation_time (unsigned int iterations)
     gettimeofday (&end_time, NULL);
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
-  return (double) time_diff / (double) iterations;
+  return time_diff / (double) iterations;
 }
 
 void null_function ()
@@ -52,7 +52,7 @@ double osm_function_time (unsigned int iterations)
   }
   unsigned int epochs = iterations / LOOP_UNROLLING;
   timeval start_time, end_time;
-  long time_diff = 0;
+  double time_diff = 0;
   for (unsigned int i = 0; i < epochs; i++)
   {
     gettimeofday (&start_time, NULL);
@@ -69,7 +69,7 @@ double osm_function_time (unsigned int iterations)
     gettimeofday (&end_time, NULL);
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
-  return (double) time_diff / (double) iterations;
+  return time_diff / (double) iterations;
 }
 
 double osm_syscall_time (unsigned int iterations)
@@ -80,7 +80,7 @@ double osm_syscall_time (unsigned int iterations)
   }
   unsigned int epochs = iterations / LOOP_UNROLLING;
   timeval start_time, end_time;
-  long time_diff = 0;
+  double time_diff = 0;
   for (unsigned int i = 0; i < epochs; i++)
   {
     gettimeofday (&start_time, NULL);
@@ -97,7 +97,7 @@ double osm_syscall_time (unsigned int iterations)
     gettimeofday (&end_time, NULL);
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
-  return (double) time_diff / (double) iterations;
+  return time_diff / (double) iterations;
 }
 
 void run_file (unsigned int num_iterations)
