@@ -24,7 +24,11 @@ double osm_operation_time (unsigned int iterations)
   for (unsigned int i = 0; i < epochs; i++)
   {
     unsigned int j = 0;
-    gettimeofday (&start_time, NULL);
+    int ok = gettimeofday (&start_time, NULL);
+    if (!ok)
+    {
+      return -1;
+    }
     j += 1;
     j += 1;
     j += 1;
@@ -35,7 +39,11 @@ double osm_operation_time (unsigned int iterations)
     j += 1;
     j += 1;
     j += 1;
-    gettimeofday (&end_time, NULL);
+    ok = gettimeofday (&end_time, NULL);
+    if (!ok)
+    {
+      return -1;
+    }
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
   return time_diff / (double) iterations;
@@ -55,7 +63,11 @@ double osm_function_time (unsigned int iterations)
   double time_diff = 0;
   for (unsigned int i = 0; i < epochs; i++)
   {
-    gettimeofday (&start_time, NULL);
+    int ok = gettimeofday (&start_time, NULL);
+    if (!ok)
+    {
+      return -1;
+    }
     null_function ();
     null_function ();
     null_function ();
@@ -66,7 +78,11 @@ double osm_function_time (unsigned int iterations)
     null_function ();
     null_function ();
     null_function ();
-    gettimeofday (&end_time, NULL);
+    ok = gettimeofday (&end_time, NULL);
+    if (!ok)
+    {
+      return -1;
+    }
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
   return time_diff / (double) iterations;
@@ -83,7 +99,11 @@ double osm_syscall_time (unsigned int iterations)
   double time_diff = 0;
   for (unsigned int i = 0; i < epochs; i++)
   {
-    gettimeofday (&start_time, NULL);
+    int ok = gettimeofday (&start_time, NULL);
+    if (!ok)
+    {
+      return -1;
+    }
     OSM_NULLSYSCALL;
     OSM_NULLSYSCALL;
     OSM_NULLSYSCALL;
@@ -94,7 +114,11 @@ double osm_syscall_time (unsigned int iterations)
     OSM_NULLSYSCALL;
     OSM_NULLSYSCALL;
     OSM_NULLSYSCALL;
-    gettimeofday (&end_time, NULL);
+    ok = gettimeofday (&end_time, NULL);
+    if (!ok)
+    {
+      return -1;
+    }
     time_diff += calculate_time_diff (&start_time, &end_time);
   }
   return time_diff / (double) iterations;
