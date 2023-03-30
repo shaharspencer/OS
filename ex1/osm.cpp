@@ -151,9 +151,11 @@ void run_file (unsigned int num_iterations)
   std::cout << "System Call Time: " << time << std::endl;
 }
 
+/*
 int main ()
 {
   run_file (ITERATIONS);
   run_file (2 * ITERATIONS);
   return 0;
 }
+*/
