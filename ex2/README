@@ -1,0 +1,3 @@
+- in spawn_utils::decide_tid ():
+    - check tid is in range 0...MAX_THREADS
+    - handle error code (-1)
