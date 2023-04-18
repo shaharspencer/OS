@@ -1,5 +1,5 @@
-//
-// Created by n318162971 on 4/18/23.
-//
-
 #include "Thread.h"
+
+Thread::Thread (int tid): tid(tid), state(READY), SP(0) {
+    //
+}

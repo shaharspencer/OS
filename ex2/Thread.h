@@ -1,9 +1,8 @@
-//
-// Created by n318162971 on 4/18/23.
-//
-
 #ifndef UTHREADS_H_THREAD_H
 #define UTHREADS_H_THREAD_H
+
+#include <list>
+#include "uthreads.h"
 
 typedef enum State {
     RUNNING,
@@ -12,8 +11,16 @@ typedef enum State {
 } State;
 
 class Thread { // What should be here? SP, CP, something else...
-    int tid,
-    State state
+    private:
+        int tid,
+        State state,
+        list<char> stack(STACK_SIZE),
+        int SP,
+    // type of SP --> beginning of stack
+    // threads blocked by this one?
+
+    public:
+        Thread (int tid);
 };
 
 

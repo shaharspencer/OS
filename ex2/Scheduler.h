@@ -4,11 +4,11 @@
 #include <sys/time.h>
 
 class Scheduler {
-    final suseconds_t quantum
+    const suseconds_t quantum;
+    // more stuff?
 
-    Scheduler (int quantum_usecs);
-    void set_quantum (int quantum_usecs);
-    suseconds_t get_quantum ();
+    public:
+        Scheduler (int quantum_usecs);
 };
 
 
