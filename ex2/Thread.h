@@ -9,13 +9,18 @@ typedef enum State {
     RUNNING,
     READY,
     BLOCKED,
-    TERMINATED
 } State;
+
+typedef unsigned long address_t;
 
 class Thread { // What should be here? SP, CP, something else...
 private:
     int tid;
     State state;
+//    list<char> stack;
+//    address_t sp;
+//    thread_entry_point entry_point;
+//    address_t pc;
     sigjmp_buf context;
 
 public:
