@@ -67,8 +67,8 @@ int current_thread = -1; // will be a parameter of Scheduler
 
 void jump_to_thread(int tid)
 {
-    current_thread = tid;
-    siglongjmp(env[tid], 1);
+    current_thread = tid; // Scheduler level
+    siglongjmp(env[tid], 1); // Thread level
 }
 
 /**

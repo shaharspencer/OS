@@ -42,13 +42,19 @@ address_t translate_address(address_t addr) {
 #endif
 
 Thread::Thread(int tid, thread_entry_point entry_point) : tid(tid), state(READY) {
-    list<char> stack(STACK_SIZE);
+    list<char> stack(STACK_SIZE); // TODO check malloc succeeded
+    address_t sp = (address_t) &stack + STACK_SIZE - sizeof(address_t);
+    address_t pc = (address_t) entry_point;
+    sigsetjmp(context, 1) // TODO figure mask, check return value
+    (context->__jmpbuf)[JB_SP] = translate_address(sp);
+    (context->__jmpbuf)[JB_PC] = translate_address(pc);
+    sigemptyset(&context->__saved_mask); // TODO check return value
 }
 
 void Thread::resume() {
     state = RUNNING;
-    entry_point();
-    // terminate
+    siglongjmp(context, 1); // TODO figure mask, check return value
+    state = TERMINATED; // TODO understand why, maybe itimer ref will help
 }
 
 sigjmp_buf Thread::get_context() {
