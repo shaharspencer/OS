@@ -60,3 +60,11 @@ void Thread::resume() {
 sigjmp_buf Thread::get_context() {
     return context;
 }
+
+int Thread::get_tid(){
+    return tid;
+}
+
+State Thread::get_state(){
+    return State;
+}

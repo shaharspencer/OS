@@ -28,6 +28,10 @@ public:
 
     void resume();
 
+    int get_tid();
+
+    State get_state();
+
     sigjmp_buf &get_context();
 };
 
