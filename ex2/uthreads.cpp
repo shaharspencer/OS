@@ -8,9 +8,9 @@
 #define SUCCESS 0
 #define FAILURE (-1)
 
-Scheduler* scheduler;
+Scheduler *scheduler;
 
-int uthread_init (int quantum_usecs) {
+int uthread_init(int quantum_usecs) {
     if (quantum_usecs <= 0) {
         // TODO handle error
         return FAILURE;
@@ -20,7 +20,7 @@ int uthread_init (int quantum_usecs) {
         // TODO handle malloc error
         return FAILURE;
     }
-    std::shared_ptr<Thread> main_thread = std::make_shared<Thread>(0, main); // TODO how to init thread 0 to main?
+    std::shared_ptr <Thread> main_thread = std::make_shared<Thread>(0, main); // TODO how to init thread 0 to main?
     bool ok = scheduler->add_thread(main_thread);
     if (!ok) {
         // TODO handle error
@@ -29,7 +29,31 @@ int uthread_init (int quantum_usecs) {
     return SUCCESS;
 }
 
-int uthread_spawn (thread_entry_point entry_point) {
+int uthread_spawn(thread_entry_point entry_point) {
     int tid = scheduler->get_free_tid();
-    std::shared_ptr<Thread> thread = std::make_shared<Thread>(tid, entry_point);
+    std::shared_ptr <Thread> thread = std::make_shared<Thread>(tid, entry_point);
+    bool ok = scheduler->add_thread(main_thread);
+    if (!ok) {
+        // TODO handle error
+        return FAILURE;
+    }
+    return SUCCESS;
+}
+
+int uthread_terminate(int tid) {
+    bool ok = scheduler->terminate(tid);
+    if (!ok) {
+        // TODO handle error
+        return FAILURE;
+    }
+    return SUCCESS;
+}
+
+int uthread_block(int tid) {
+    bool ok = scheduler->block(tid);
+    if (!ok) {
+        // TODO handle error
+        return FAILURE;
+    }
+    return SUCCESS;
 }
