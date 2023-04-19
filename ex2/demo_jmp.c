@@ -59,10 +59,10 @@ address_t translate_address(address_t addr)
 
 typedef void (*thread_entry_point)(void);
 
-char stack0[STACK_SIZE];
+char stack0[STACK_SIZE]; // user level stack allocation, we will do it in uthread_spawn
 char stack1[STACK_SIZE];
-sigjmp_buf env[2];
-int current_thread = -1;
+sigjmp_buf env[2]; // will be the context vector in Scheduler
+int current_thread = -1; // will be a parameter of Scheduler
 
 
 void jump_to_thread(int tid)
@@ -74,7 +74,7 @@ void jump_to_thread(int tid)
 /**
  * @brief Saves the current thread state, and jumps to the other thread.
  */
-void yield(void)
+void yield(void) // Scheduler level
 {
     int ret_val = sigsetjmp(env[current_thread], 1);
     printf("yield: ret_val=%d\n", ret_val);
@@ -125,9 +125,9 @@ void setup_thread(int tid, char *stack, thread_entry_point entry_point)
 {
     // initializes env[tid] to use the right stack, and to run from the function 'entry_point', when we'll use
     // siglongjmp to jump into the thread.
-    address_t sp = (address_t) stack + STACK_SIZE - sizeof(address_t);
+    address_t sp = (address_t) stack + STACK_SIZE - sizeof(address_t); // why address_t?
     address_t pc = (address_t) entry_point;
-    sigsetjmp(env[tid], 1);
+    sigsetjmp(env[tid], 1); // figure out mask
     (env[tid]->__jmpbuf)[JB_SP] = translate_address(sp);
     (env[tid]->__jmpbuf)[JB_PC] = translate_address(pc);
     sigemptyset(&env[tid]->__saved_mask);
