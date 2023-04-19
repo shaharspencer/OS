@@ -41,9 +41,8 @@ address_t translate_address(address_t addr) {
 
 #endif
 
-Thread::Thread(int tid, thread_entry_point entry_point) :
-        tid(tid), state(READY), sp(0), entry_point(entry_point) {
-    stack = list<char> s(STACK_SIZE);
+Thread::Thread(int tid, thread_entry_point entry_point) : tid(tid), state(READY) {
+    list<char> stack(STACK_SIZE);
 }
 
 void Thread::resume() {
