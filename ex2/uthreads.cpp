@@ -1,5 +1,6 @@
 #include "uthreads.h"
 #include "Thread.h"
+#include "Scheduler.h"
 
 #define SYSTEM_ERROR "system error: %s\n"
 #define THREAD_LIBRARY_ERROR "thread library error: %s\n"
