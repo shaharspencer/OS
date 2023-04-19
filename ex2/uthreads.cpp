@@ -52,3 +52,7 @@ int uthread_block(int tid) {
     }
     return SUCCESS;
 }
+
+int uthread_resume(int tid) {
+    scheduler->resume(tid) ? SUCCESS : FAILURE;
+}
