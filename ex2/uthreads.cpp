@@ -11,10 +11,22 @@
 Scheduler* scheduler;
 
 int uthread_init (int quantum_usecs) {
+    if (quantum_usecs <= 0) {
+        // TODO handle error
+        return FAILURE;
+    }
     scheduler = new Scheduler(quantum_usecs);
+    if (!scheduler) {
+        // TODO handle malloc error
+        return FAILURE;
+    }
     std::shared_ptr<Thread> main_thread = std::make_shared<Thread>(0, main); // TODO how to init thread 0 to main?
-    scheduler->add_thread(main_thread);
-    return SUCCESS; // TODO handle error
+    bool ok = scheduler->add_thread(main_thread);
+    if (!ok) {
+        // TODO handle error
+        return FAILURE;
+    }
+    return SUCCESS;
 }
 
 int uthread_spawn (thread_entry_point entry_point) {
