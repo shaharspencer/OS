@@ -29,8 +29,7 @@ typedef unsigned int address_t;
 
 /* A translation is required when using an address of a variable.
    Use this as a black box in your code. */
-address_t translate_address(address_t addr)
-{
+address_t translate_address(address_t addr) {
     address_t ret;
     asm volatile("xor    %%gs:0x18,%0\n"
                  "rol    $0x9,%0\n"
@@ -42,16 +41,17 @@ address_t translate_address(address_t addr)
 
 #endif
 
-Thread::Thread (int tid, thread_entry_point entry_point): tid(tid), state(READY), sp(0), entry_point(entry_point) {
-    //
+Thread::Thread(int tid, thread_entry_point entry_point) :
+        tid(tid), state(READY), sp(0), entry_point(entry_point) {
+    stack = list<char> s(STACK_SIZE);
 }
 
-void Thread::resume () {
-    this->state = RUNNING;
-    this->entry_point();
+void Thread::resume() {
+    state = RUNNING;
+    entry_point();
     // terminate
 }
 
-sigjmp_buf Thread::get_context () {
-
+sigjmp_buf Thread::get_context() {
+    return context;
 }
