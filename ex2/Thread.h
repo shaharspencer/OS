@@ -14,18 +14,18 @@ typedef enum State {
 typedef unsigned long address_t;
 
 class Thread { // What should be here? SP, CP, something else...
-    private:
-        int tid,
-        State state,
-        list<char> stack(STACK_SIZE),
-        address_t sp,
-        thread_entry_point entry_point,
-        address_t pc
-    // type of SP --> beginning of stack
-    // threads blocked by this one?
+private:
+    int tid;
+    State state;
+    list<char> stack (STACK_SIZE);
+    address_t sp;
+    thread_entry_point entry_point;
+    address_t pc;
 
-    public:
-        Thread (int tid);
+public:
+    Thread (int tid, thread_entry_point entry_point);
+    void resume ();
+    sigjmp_buf get_context ();
 };
 
 
