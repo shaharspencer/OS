@@ -55,6 +55,8 @@ public:
 
     bool block(int tid);
 
+    bool yield();
+
 };
 
 
