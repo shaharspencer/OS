@@ -1,6 +1,7 @@
 #include "uthreads.h"
 #include "Thread.h"
 #include "Scheduler.h"
+#include "init_helper.cpp"
 
 #define SYSTEM_ERROR "system error: %s\n"
 #define THREAD_LIBRARY_ERROR "thread library error: %s\n"
@@ -20,14 +21,9 @@ int uthread_init (int quantum_usecs) {
         // TODO handle malloc error
         return FAILURE;
     }
-    std::shared_ptr<Thread> main_thread = std::make_shared<Thread>(0, main); // TODO how to init thread 0 to main?
-    bool ok = scheduler->add_thread(main_thread);
-    if (!ok) {
-        // TODO handle error
-        return FAILURE;
-    }
-    return SUCCESS;
+    return create_main_thread();
 }
+
 
 int uthread_spawn (thread_entry_point entry_point) {
     int tid = scheduler->get_free_tid();
