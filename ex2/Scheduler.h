@@ -26,7 +26,6 @@ private:
     /* Signals component */
     sigset_t signals;
 
-    void timer_handler(int sig);
 
 public:
     /**
@@ -77,7 +76,6 @@ public:
      * then move the next thread in the queue of READY threads to the RUNNING state.
      * @param sig signal to handle
      */
-
      void timer_handler(int sig);
 
 };
