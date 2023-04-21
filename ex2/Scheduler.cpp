@@ -1,7 +1,8 @@
 #include <sys/time.h>
 #include "Scheduler.h"
 
-Scheduler::Scheduler (int quantum_usecs): quantum((suseconds_t) quantum_usecs) {
+Scheduler::Scheduler (int quantum_usecs) :
+quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
     // What else should be done here?
 }
 

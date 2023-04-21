@@ -5,19 +5,28 @@
 #include <memory>
 #include <list>
 #include <queue>
+#include <set>
 #include <sys/time.h>
+#include <signal.h>
 #include <error.h>
 
 class Scheduler {
 private:
+    /* Timer components */
     const suseconds_t quantum;
+    struct itimer timer;
+    int total_quanta_counter;
+
+    /* Threads components */
     list <std::shared_ptr<Thread>> threads;
     std::shared_ptr <Thread> running_thread;
     queue <std::shared_ptr<Thread>> ready_threads;
-    list <std::shared_ptr<Thread>> blocked_threads;
-    int total_quanta_counter;
-    // more stuff?
+    set <std::shared_ptr<Thread>> blocked_threads;
 
+    /* Signals component */
+    sigset_t signals;
+
+    void timer_handler(int sig);
 
 public:
     /**
@@ -25,7 +34,6 @@ public:
      * @param quantum_usecs the value of a quantam in micro-seconds
      */
     Scheduler(int quantum_usecs);
-
     ~Scheduler();
 
     /**
