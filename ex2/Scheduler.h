@@ -26,7 +26,6 @@ private:
     /* Signals component */
     sigset_t signals;
 
-
 public:
     /**
      * constructor for Scheduler
