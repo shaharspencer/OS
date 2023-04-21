@@ -39,3 +39,24 @@ bool Scheduler::terminate(int tid){
 bool Scheduler::does_thread_exist(int tid){
     return (threads.get(i) != NULL);
 }
+
+bool install_signal_handler(){
+    struct sigaction sa = {0};
+    sa.sa_handler = &timer_handler;
+    if (sigaction(SIGVTALRM, &sa, NULL) < 0)
+    {
+        // TODO handle error
+        printf("sigaction error.");
+    }
+}
+
+
+bool timer_handler(int sig){
+    if !(sig == SIGVTALRM){
+        // DO SOMETHING
+    }
+    // terminate current thread -though perhaps it terminates itself?
+
+    // start next thread in queue
+
+}

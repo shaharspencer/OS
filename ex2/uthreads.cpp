@@ -9,19 +9,19 @@
 #define SUCCESS 0
 #define FAILURE (-1)
 
-Scheduler *scheduler;
+std::unique_ptr<Scheduler> scheduler;
 
 int uthread_init(int quantum_usecs) {
     if (quantum_usecs <= 0) {
         // TODO handle error
         return FAILURE;
     }
-    scheduler = new Scheduler(quantum_usecs);
+    scheduler = std::make_unique<Scheduler>(quantum_usecs);
     if (!scheduler) {
         // TODO handle malloc error
         return FAILURE;
     }
-    return create_main_thread();
+    return create_main_thread(scheduler);
 }
 
 int uthread_spawn(thread_entry_point entry_point) {

@@ -57,6 +57,25 @@ public:
 
     bool yield();
 
+    /**
+     * Install timer_handler as the signal handler for SIGVTALRM.
+     * @return
+     */
+    bool install_signal_handler();
+
+    /**
+     * this method is the signal handler for SIGVTALRM.
+     * it recieves a signal sig as input.
+     * if the signal is not SIGVTALRM ???
+     * When the RUNNING thread is preempted, do the following:
+     * If it was preempted because its quantum has expired, move it to the end of the
+     * READY threads list.
+     * then move the next thread in the queue of READY threads to the RUNNING state.
+     * @param sig signal to handle
+     */
+
+     void timer_handler(int sig);
+
 };
 
 
