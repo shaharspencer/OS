@@ -18,10 +18,10 @@ private:
     int total_quanta_counter;
 
     /* Threads components */
-    std::shared_ptr<Thread> threads[MAX_THREAD_NUM];
-    std::shared_ptr<Thread> running_thread;
-    queue <std::shared_ptr<Thread>> ready_threads;
-    set <std::shared_ptr<Thread>> blocked_threads;
+    std::shared_ptr <Thread> threads[MAX_THREAD_NUM];
+    std::shared_ptr <Thread> running_thread;
+    queue <std::shared_ptr <Thread>> ready_threads;
+    set <std::shared_ptr <Thread>> blocked_threads;
 
     /* Signals component */
     sigset_t signals;

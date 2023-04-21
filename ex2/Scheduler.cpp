@@ -33,16 +33,6 @@ bool Scheduler::spawn(thread_entry_point entry_point) {
     threads[tid] = thread;
     ready_threads.push(thread);
     return true;
-//
-//    // check thread id does not exist already
-//    if (does_thread_exist(thread->get_id())){
-//        throw new Error("thread id already exists"); // TODO remove when we're done
-//    }
-//    // add to threads
-//    threads[thread->get_id()] = thread;
-//    // add to ready_threads
-//    ready_threads.push(thread);
-//    return true;
 }
 
 // TODO
