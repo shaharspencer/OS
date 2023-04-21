@@ -2,10 +2,14 @@
 #include "Scheduler.h"
 
 #define NO_FREE_TID (-1)
+#define MAIN_TID 0
 
 Scheduler::Scheduler (int quantum_usecs) :
 quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
     // TODO create main thread and put as threads[0]
+    spawn(main); // how?
+    running_thread = MAIN_TID;
+    ready_threads->pop();
     // TODO init Round-Robin
 }
 
@@ -36,8 +40,16 @@ bool Scheduler::spawn(thread_entry_point entry_point) {
 }
 
 // TODO
-bool Scheduler::terminate(int tid){
-    // remove from threads
+bool Scheduler::terminate(int tid) {
+    /* Assert threads[tid] exists */
+    if(!threads[tid]) {
+        throw new Error("terminate: thread is null");
+        return false;
+    }
+    /* If main thread is terminated, end run */
+    if(tid == MAIN_TID) {
+        // TODO implement exit w/ memory clearing
+    }
 }
 
 bool Scheduler::does_thread_exist(int tid){

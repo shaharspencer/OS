@@ -20,7 +20,7 @@ private:
     /* Threads components */
     std::shared_ptr <Thread> threads[MAX_THREAD_NUM];
     std::shared_ptr <Thread> running_thread;
-    queue <std::shared_ptr <Thread>> ready_threads;
+    queue <std::shared_ptr <Thread>> *ready_threads;
     set <std::shared_ptr <Thread>> blocked_threads;
 
     /* Signals component */
@@ -34,6 +34,8 @@ public:
     ~Scheduler();
 
     int get_total_quanta_counter();
+
+    bool init();
 
     /**
      * recieves a thread and adds it to threads and to ready_threads
