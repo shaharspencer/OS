@@ -36,6 +36,8 @@ public:
     Scheduler(int quantum_usecs);
     ~Scheduler();
 
+    int get_total_quanta_counter();
+
     /**
     * gets the next free id
     * @return id of free thread, -1 if there are none
@@ -60,6 +62,10 @@ public:
     bool block(int tid);
 
     bool yield();
+
+    bool resume(int tid);
+
+    bool sleep(int tid);
 
     /**
      * Install timer_handler as the signal handler for SIGVTALRM.
