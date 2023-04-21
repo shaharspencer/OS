@@ -35,6 +35,8 @@ public:
     Scheduler(int quantum_usecs);
     ~Scheduler();
 
+    int get_total_quanta_counter();
+
     /**
     * gets the next free id
     * @return id of free thread, -1 if there are none
@@ -46,7 +48,7 @@ public:
      * * @param thread thread to add
      * @return true if success else false
     **/
-    bool add_thread(std::shared_ptr <Thread> thread);
+    bool spawn(thread_entry_point entry_point);
 
     /** removes a thread from threads
      * @param tid id of thread to remove
@@ -59,6 +61,10 @@ public:
     bool block(int tid);
 
     bool yield();
+
+    bool resume(int tid);
+
+    bool sleep(int tid);
 
     /**
      * Install timer_handler as the signal handler for SIGVTALRM.
