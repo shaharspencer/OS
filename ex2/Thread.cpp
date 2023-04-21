@@ -1,4 +1,5 @@
 #include "Thread.h"
+#include <iostream>
 
 #ifdef __x86_64__
 /* code for 64 bit Intel arch */
@@ -41,14 +42,22 @@ address_t translate_address(address_t addr) {
 
 #endif
 
-Thread::Thread(int tid, thread_entry_point entry_point) : tid(tid), state(READY) {
-    list<char> stack(STACK_SIZE); // TODO check malloc succeeded
-    address_t sp = (address_t) &stack + STACK_SIZE - sizeof(address_t);
+Thread::Thread(int tid, thread_entry_point entry_point) :
+tid(tid), state(READY), quantum_counter(0) {
+    stack = calloc(STACK_SIZE, sizeof(char));
+    if(!stack) {
+        std::cerr << "malloc error" << std::endl;
+    } // TODO check malloc succeeded
+    address_t sp = (address_t) stack + STACK_SIZE - sizeof(address_t);
     address_t pc = (address_t) entry_point;
     sigsetjmp(context, 1) // TODO figure mask, check return value
     (context->__jmpbuf)[JB_SP] = translate_address(sp);
     (context->__jmpbuf)[JB_PC] = translate_address(pc);
     sigemptyset(&context->__saved_mask); // TODO check return value
+}
+
+Thread::~Thread() {
+    delete[] (context->__jmpbuf)[JB_SP];
 }
 
 void Thread::resume() {
@@ -57,8 +66,8 @@ void Thread::resume() {
     state = TERMINATED; // TODO understand why, maybe itimer ref will help
 }
 
-sigjmp_buf Thread::get_context() {
-    return context;
+sigjmp_buf &Thread::get_context() {
+    return &context;
 }
 
 int Thread::get_tid(){
