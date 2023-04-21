@@ -2,7 +2,6 @@
 #define UTHREADS_H_THREAD_H
 
 #include "uthreads.h"
-#include <list>
 #include <setjmp.h>
 
 typedef enum State {
