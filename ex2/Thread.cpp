@@ -57,7 +57,7 @@ tid(tid), state(READY), quantum_counter(0) {
 }
 
 Thread::~Thread() {
-    delete[] (context->__jmpbuf)[JB_SP];
+    delete[] stack;
 }
 
 void Thread::resume() {
