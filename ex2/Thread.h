@@ -16,7 +16,7 @@ private:
     State state;
     char* stack;
     sigjmp_buf context;
-    int quantum_counter;
+    int quanta_counter;
 
 public:
     Thread(int tid, thread_entry_point entry_point);
@@ -28,8 +28,8 @@ public:
 
     sigjmp_buf &get_context();
 
-    int get_quantum_counter();
-    void increment_quantum_counter();
+    int get_quanta_counter();
+    void increment_quanta_counter();
 };
 
 

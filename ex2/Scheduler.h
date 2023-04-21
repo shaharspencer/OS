@@ -1,25 +1,21 @@
 #ifndef UTHREADS_H_SCHEDULER_H
 #define UTHREADS_H_SCHEDULER_H
 
+#include "Thread.h"
 #include <memory>
 #include <list>
 #include <queue>
 #include <sys/time.h>
-#include "Thread.h"
 #include <error.h>
 
 class Scheduler {
 private:
-    /**
-    * quantam
-    */
     const suseconds_t quantum;
-
     list <std::shared_ptr<Thread>> threads;
-
     std::shared_ptr <Thread> running_thread;
     queue <std::shared_ptr<Thread>> ready_threads;
     list <std::shared_ptr<Thread>> blocked_threads;
+    int total_quanta_counter;
     // more stuff?
 
 
