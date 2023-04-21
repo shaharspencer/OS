@@ -1,27 +1,26 @@
 #include <sys/time.h>
 #include "Scheduler.h"
 
+#define NO_FREE_TID (-1)
+
 Scheduler::Scheduler (int quantum_usecs) :
 quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
     // TODO create main thread and put as threads[0]
     // TODO init Round-Robin
 }
 
-int Scheduler::get_free_tid (){
-    // get first Null in threads
-    // TODO: 0 should not be available?
-    for (int i = 0; i < MAX_THREAD_NUM; i++)
-    {
-        if (threads.get(i) == NULL){
+int Scheduler::get_free_tid() {
+    for(int i = 0; i < MAX_THREAD_NUM; i++) {
+        if (!threads[i]) {
             return i;
         }
     }
-    return -1;
+    return NO_FREE_TID;
 }
 
 bool Scheduler::spawn(thread_entry_point entry_point) {
-    tid = get_free_tid();
-    if(tid < 0) {
+    int tid = get_free_tid();
+    if(tid == NO_FREE_TID) {
         throw new Error("spawn: no free tid"); // TODO remove when done
         return false;
     }
@@ -31,7 +30,7 @@ bool Scheduler::spawn(thread_entry_point entry_point) {
         throw new Error("spawn: thread construction failed"); // TODO remove when done
         return false;
     }
-    threads.insert();
+    threads[tid] = thread;
     ready_threads.push(thread);
     return true;
 //
@@ -49,7 +48,6 @@ bool Scheduler::spawn(thread_entry_point entry_point) {
 // TODO
 bool Scheduler::terminate(int tid){
     // remove from threads
-
 }
 
 bool Scheduler::does_thread_exist(int tid){

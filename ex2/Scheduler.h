@@ -18,29 +18,22 @@ private:
     int total_quanta_counter;
 
     /* Threads components */
-    list <std::shared_ptr<Thread>> threads;
-    std::shared_ptr <Thread> running_thread;
+    std::shared_ptr<Thread> threads[MAX_THREAD_NUM];
+    std::shared_ptr<Thread> running_thread;
     queue <std::shared_ptr<Thread>> ready_threads;
     set <std::shared_ptr<Thread>> blocked_threads;
 
     /* Signals component */
     sigset_t signals;
 
+    int get_free_tid();
+    bool yield();
+
 public:
-    /**
-     * constructor for Scheduler
-     * @param quantum_usecs the value of a quantam in micro-seconds
-     */
     Scheduler(int quantum_usecs);
     ~Scheduler();
 
     int get_total_quanta_counter();
-
-    /**
-    * gets the next free id
-    * @return id of free thread, -1 if there are none
-    **/
-    int get_free_tid();
 
     /**
      * recieves a thread and adds it to threads and to ready_threads
@@ -58,8 +51,6 @@ public:
     bool does_thread_exist(int tid);
 
     bool block(int tid);
-
-    bool yield();
 
     bool resume(int tid);
 
