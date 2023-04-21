@@ -43,7 +43,7 @@ address_t translate_address(address_t addr) {
 #endif
 
 Thread::Thread(int tid, thread_entry_point entry_point) :
-tid(tid), state(READY), quantum_counter(0) {
+tid(tid), state(READY), quanta_counter(0) {
     stack = calloc(STACK_SIZE, sizeof(char));
     if(!stack) {
         std::cerr << "malloc error" << std::endl;
@@ -72,10 +72,10 @@ sigjmp_buf &Thread::get_context() {
     return &context;
 }
 
-int Thread::get_quantum_counter() {
-    return quantum_counter;
+int Thread::get_quanta_counter() {
+    return quanta_counter;
 }
 
-void Thread::increment_quantum_counter() {
-    quantum_counter++;
+void Thread::increment_quanta_counter() {
+    quanta_counter++;
 }

@@ -21,12 +21,13 @@ void timer_handler(int sig)
 
 int main(void)
 {
-    struct sigaction sa = {0};
-    struct itimerval timer;
+    struct sigaction sa = {0}; // will hold the handler
+    struct itimerval timer; // the virtual timer itself
 
     // Install timer_handler as the signal handler for SIGVTALRM.
-    sa.sa_handler = &timer_handler;
-    if (sigaction(SIGVTALRM, &sa, NULL) < 0)
+    sa.sa_handler = &timer_handler; // define the handler func for sa
+    if (sigaction(SIGVTALRM, &sa, NULL) < 0) // make sure that handler
+        // installation succeeds
     {
         printf("sigaction error.");
     }
