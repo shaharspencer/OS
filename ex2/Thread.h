@@ -15,7 +15,7 @@ private:
     int tid;
     State state;
     char* stack;
-    sigjmp_buf context;
+    sigjmp_buf env;
     int quanta_counter;
 
 public:
@@ -26,7 +26,7 @@ public:
 
     State get_state();
 
-    sigjmp_buf &get_context();
+    sigjmp_buf &get_env();
 
     int get_quanta_counter();
     void increment_quanta_counter();

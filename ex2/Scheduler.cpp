@@ -1,11 +1,16 @@
-#include <sys/time.h>
 #include "Scheduler.h"
+#include <queue>
+#include <set>
+#include <sys/time.h>
+#include <signal.h>
 
 #define NO_FREE_TID (-1)
 #define MAIN_TID 0
 
 Scheduler::Scheduler (int quantum_usecs) :
 quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
+    ready_threads = new queue<int>();
+    blocked_threads = new set<int>();
     // TODO create main thread and put as threads[0]
     spawn(main); // how?
     running_thread = MAIN_TID;
@@ -28,8 +33,7 @@ bool Scheduler::spawn(thread_entry_point entry_point) {
         throw new Error("spawn: no free tid"); // TODO remove when done
         return false;
     }
-    std::shared_ptr<Thread> thread =
-        std::make_shared<Thread>(tid, entry_point);
+    auto thread = new Thread(tid, entry_point);
     if(!thread) {
         throw new Error("spawn: thread construction failed"); // TODO remove when done
         return false;
@@ -39,7 +43,6 @@ bool Scheduler::spawn(thread_entry_point entry_point) {
     return true;
 }
 
-// TODO
 bool Scheduler::terminate(int tid) {
     /* Assert threads[tid] exists */
     if(!threads[tid]) {

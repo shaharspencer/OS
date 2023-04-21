@@ -44,16 +44,19 @@ address_t translate_address(address_t addr) {
 
 Thread::Thread(int tid, thread_entry_point entry_point) :
 tid(tid), state(READY), quanta_counter(0) {
-    stack = calloc(STACK_SIZE, sizeof(char));
+    /* Allocates pseudo-stack for the new thread */
+    stack = new char[STACK_SIZE];
     if(!stack) {
-        std::cerr << "malloc error" << std::endl;
-    } // TODO check malloc succeeded
+        std::cerr << "malloc error" << std::endl; // TODO use error macro
+    }
+
+    /* Initializes env, same as in demo_jmp.c */
     address_t sp = (address_t) stack + STACK_SIZE - sizeof(address_t);
     address_t pc = (address_t) entry_point;
-    sigsetjmp(context, 1) // TODO figure mask, check return value
-    (context->__jmpbuf)[JB_SP] = translate_address(sp);
-    (context->__jmpbuf)[JB_PC] = translate_address(pc);
-    sigemptyset(&context->__saved_mask); // TODO check return value
+    sigsetjmp(env, 1); // TODO figure mask, check return value
+    (env->__jmpbuf)[JB_SP] = translate_address(sp);
+    (env->__jmpbuf)[JB_PC] = translate_address(pc);
+    sigemptyset(&env->__saved_mask); // TODO check return value
 }
 
 Thread::~Thread() {
@@ -68,8 +71,8 @@ State Thread::get_state(){
     return state;
 }
 
-sigjmp_buf &Thread::get_context() {
-    return &context;
+sigjmp_buf &Thread::get_env() {
+    return &env;
 }
 
 int Thread::get_quanta_counter() {
