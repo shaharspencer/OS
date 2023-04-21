@@ -3,7 +3,8 @@
 
 Scheduler::Scheduler (int quantum_usecs) :
 quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
-    // What else should be done here?
+    // TODO create main thread and put as threads[0]
+    // TODO init Round-Robin
 }
 
 int Scheduler::get_free_tid (){
@@ -18,16 +19,31 @@ int Scheduler::get_free_tid (){
     return -1;
 }
 
-bool Scheduler::add_thread(std::shared_ptr<Thread> thread){
-    // check thread id does not exist already
-    if (does_thread_exist(thread->get_id())){
-        throw new Error("thread id already exists"); // TODO remove when we're done
+bool Scheduler::spawn(thread_entry_point entry_point) {
+    tid = get_free_tid();
+    if(tid < 0) {
+        throw new Error("spawn: no free tid"); // TODO remove when done
+        return false;
     }
-    // add to threads
-    threads[thread->get_id()] = thread;
-    // add to ready_threads
+    std::shared_ptr<Thread> thread =
+        std::make_shared<Thread>(tid, entry_point);
+    if(!thread) {
+        throw new Error("spawn: thread construction failed"); // TODO remove when done
+        return false;
+    }
+    threads.insert();
     ready_threads.push(thread);
     return true;
+//
+//    // check thread id does not exist already
+//    if (does_thread_exist(thread->get_id())){
+//        throw new Error("thread id already exists"); // TODO remove when we're done
+//    }
+//    // add to threads
+//    threads[thread->get_id()] = thread;
+//    // add to ready_threads
+//    ready_threads.push(thread);
+//    return true;
 }
 
 // TODO

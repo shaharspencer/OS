@@ -26,8 +26,6 @@ private:
     /* Signals component */
     sigset_t signals;
 
-    void timer_handler(int sig);
-
 public:
     /**
      * constructor for Scheduler
@@ -49,7 +47,7 @@ public:
      * * @param thread thread to add
      * @return true if success else false
     **/
-    bool add_thread(std::shared_ptr <Thread> thread);
+    bool spawn(thread_entry_point entry_point);
 
     /** removes a thread from threads
      * @param tid id of thread to remove
