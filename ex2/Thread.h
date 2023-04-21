@@ -23,13 +23,14 @@ public:
     Thread(int tid, thread_entry_point entry_point);
     ~Thread();
 
-    void resume();
-
     int get_tid();
 
     State get_state();
 
     sigjmp_buf &get_context();
+
+    int get_quantum_counter();
+    void increment_quantum_counter();
 };
 
 

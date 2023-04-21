@@ -60,20 +60,22 @@ Thread::~Thread() {
     delete[] stack;
 }
 
-void Thread::resume() {
-    state = RUNNING;
-    siglongjmp(context, 1); // TODO figure mask, check return value
-    state = TERMINATED; // TODO understand why, maybe itimer ref will help
+int Thread::get_tid(){
+    return tid;
+}
+
+State Thread::get_state(){
+    return state;
 }
 
 sigjmp_buf &Thread::get_context() {
     return &context;
 }
 
-int Thread::get_tid(){
-    return tid;
+int Thread::get_quantum_counter() {
+    return quantum_counter;
 }
 
-State Thread::get_state(){
-    return State;
+void Thread::increment_quantum_counter() {
+    quantum_counter++;
 }
