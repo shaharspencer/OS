@@ -14,6 +14,7 @@ class Thread {
 private:
     int tid;
     State state;
+    bool sleeping;
     char* stack;
     sigjmp_buf env;
     int quanta_counter;
@@ -25,6 +26,8 @@ public:
     int get_tid();
 
     State get_state();
+
+    bool is_sleeping();
 
     sigjmp_buf &get_env();
 

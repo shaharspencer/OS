@@ -63,12 +63,16 @@ Thread::~Thread() {
     delete[] stack;
 }
 
-int Thread::get_tid(){
+int Thread::get_tid() {
     return tid;
 }
 
-State Thread::get_state(){
+State Thread::get_state() {
     return state;
+}
+
+bool Thread::is_sleeping() {
+    return sleeping;
 }
 
 sigjmp_buf &Thread::get_env() {

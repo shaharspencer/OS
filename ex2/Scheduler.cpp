@@ -49,9 +49,23 @@ bool Scheduler::terminate(int tid) {
         throw new Error("terminate: thread is null");
         return false;
     }
+
     /* If main thread is terminated, end run */
     if(tid == MAIN_TID) {
         // TODO implement exit w/ memory clearing
+    }
+
+    /* Terminate depending on thread's state */
+    switch (threads[tid]->get_state())
+    {
+        case READY:
+            break;
+        case RUNNING:
+            break;
+        case BLOCKED:
+            break;
+        default:
+            break; // sleeping
     }
 }
 
