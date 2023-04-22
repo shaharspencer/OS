@@ -26,7 +26,7 @@ private:
     sigset_t signals;
 
     int get_free_tid();
-    bool yield();
+    bool is_tid_valid(int tid);
 
 public:
     Scheduler(int quantum_usecs);
@@ -39,7 +39,7 @@ public:
      * * @param thread thread to add
      * @return true if success else false
     **/
-    bool spawn(thread_entry_point entry_point);
+    int spawn(thread_entry_point entry_point);
 
     /** removes a thread from threads
      * @param tid id of thread to remove
