@@ -1,3 +1,26 @@
 - in spawn_utils::decide_tid ():
     - check tid is in range 0...MAX_THREADS
     - handle error code (-1)
+
+MAKE SURE NO MEMORY LEAKS OCCUR
+
+Round-Robin Algorithm:
+while(scheduler_is_running) {
+    // the next thread to run is assigned to running_thread
+    ret = run threads[running_thread] for quantum: // -> add run() method to Thread
+        if ret == QUANTUM_ELAPSED:
+            ready_threads.push(running_thread)
+        else if ret == BLOCKED:
+            blocked_threads.add(running_thread)
+        else if ret == TERMINATED:
+            terminate(running_thread)
+    threads[running_thread].increment_quanta_counter()
+    total_quanta_counter++;
+    running_thread = ready_threads.pop()
+}
+
+void thread0 () {
+    ...
+    uthread_terminate(this thread's tid); // by assumption 1
+    return;
+}

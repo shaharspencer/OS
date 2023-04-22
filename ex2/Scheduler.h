@@ -32,8 +32,6 @@ public:
     Scheduler(int quantum_usecs);
     ~Scheduler();
 
-    int get_total_quanta_counter();
-
     bool init();
 
     /**
@@ -74,6 +72,8 @@ public:
      * @param sig signal to handle
      */
      void timer_handler(int sig);
+
+    int get_total_quanta_counter();
 
 };
 

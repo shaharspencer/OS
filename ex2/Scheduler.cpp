@@ -28,17 +28,24 @@ int Scheduler::get_free_tid() {
 }
 
 bool Scheduler::spawn(thread_entry_point entry_point) {
+    /* get free tid if available, if not fail and return */
     int tid = get_free_tid();
     if(tid == NO_FREE_TID) {
         throw new Error("spawn: no free tid"); // TODO remove when done
         return false;
     }
+
+    /* create a new Thread Control Block (TCB).
+     * if creation failed, fail and return */
     auto thread = new Thread(tid, entry_point);
     if(!thread) {
         throw new Error("spawn: thread construction failed"); // TODO remove when done
         return false;
     }
+
+    /* assign new thread to threads list */
     threads[tid] = thread;
+    /* since spawned thread is READY, push its tid to ready queue */
     ready_threads.push(thread);
     return true;
 }
