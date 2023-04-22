@@ -71,11 +71,8 @@ State Thread::get_state() {
     return state;
 }
 
-bool Thread::set_state(State newState){
-    // TODO check newState is a valid state
-    this->state = newState;
-    return true;
-
+void Thread::set_state(State s) {
+    state = s;
 }
 
 bool Thread::is_sleeping() {

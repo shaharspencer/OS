@@ -27,7 +27,7 @@ public:
 
     State get_state();
 
-    bool set_state(State newState); //TODO remove??
+    void set_state(State s);
 
     bool is_sleeping();
 
