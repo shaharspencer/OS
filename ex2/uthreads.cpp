@@ -9,7 +9,7 @@
 #define SUCCESS 0
 #define FAILURE (-1)
 
-std::unique_ptr<Scheduler> scheduler;
+static std::unique_ptr<Scheduler> scheduler;
 
 int uthread_init(int quantum_usecs) {
     if (quantum_usecs <= 0) {
