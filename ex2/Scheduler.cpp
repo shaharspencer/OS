@@ -155,6 +155,10 @@ int Scheduler::resume(int tid) {
     return SUCCESS;
 }
 
+int Scheduler::get_running_thread() {
+    return running_thread;
+}
+
 bool install_signal_handler(){
     struct sigaction sa = {0};
     sa.sa_handler = &timer_handler;

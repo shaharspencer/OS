@@ -84,6 +84,13 @@ public:
     bool sleep(int tid);
 
     /**
+     * @brief Returns the thread ID of the calling thread.
+     *
+     * @return The ID of the calling thread.
+     */
+    int get_running_thread();
+
+    /**
      * Install timer_handler as the signal handler for SIGVTALRM.
      * @return
      */
