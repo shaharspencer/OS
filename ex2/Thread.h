@@ -27,6 +27,8 @@ public:
 
     State get_state();
 
+    void set_state(State s);
+
     bool is_sleeping();
 
     sigjmp_buf &get_env();

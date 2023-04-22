@@ -71,6 +71,10 @@ State Thread::get_state() {
     return state;
 }
 
+void Thread::set_state(State s) {
+    state = s;
+}
+
 bool Thread::is_sleeping() {
     return sleeping;
 }
