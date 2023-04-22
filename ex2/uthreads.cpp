@@ -36,8 +36,11 @@ int uthread_spawn(thread_entry_point entry_point) {
 }
 
 int uthread_terminate(int tid) {
-    bool ok = scheduler->terminate(tid);
-    if (!ok) {
+    // if we want to destroy the main process, just exit the program
+    if (tid == MAIN_TID){
+        exit(0);
+    }
+    if (!scheduler->terminate(tid)) {
         // TODO handle error
         return FAILURE;
     }
