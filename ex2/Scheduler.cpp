@@ -5,7 +5,8 @@
 #include <signal.h>
 
 #define FAIL (-1)
-#define MAIN_TID 0
+
+
 
 Scheduler::Scheduler (int quantum_usecs) :
 quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
@@ -67,6 +68,9 @@ int Scheduler::spawn(thread_entry_point entry_point) {
 bool Scheduler::terminate(int tid) {
     /* assert tid is valid and threads[tid] exists,
      * if not fail and return */
+    if (tid == 0){
+        throw new Error("tried to run scheduler's terminate on main_thread, should not have reached here.")
+    }
     if(!is_tid_valid(tid) || !threads[tid]) {
         throw new Error("terminate: tid is invalid or thread is nullptr");
         return false;
@@ -92,10 +96,10 @@ bool Scheduler::terminate(int tid) {
 }
 
 bool Scheduler::does_thread_exist(int tid){
-    return (threads.get(i) != NULL);
+    return (is_tid_valid(tid) && threads.get(i) != NULL);
 }
 
-bool install_signal_handler(){
+bool Scheduler::install_signal_handler(){
     struct sigaction sa = {0};
     sa.sa_handler = &timer_handler;
     if (sigaction(SIGVTALRM, &sa, NULL) < 0)
@@ -106,12 +110,32 @@ bool install_signal_handler(){
 }
 
 
-bool timer_handler(int sig){
+void Scheduler::timer_handler(int sig){
     if !(sig == SIGVTALRM){
         // DO SOMETHING
     }
-    // terminate current thread -though perhaps it terminates itself?
+    // push current thread into ready_threads
+
+
+
 
     // start next thread in queue
 
+
+
+}
+
+void pop_next_ready_thread(){
+    // deal with the running thread: either terminate or move to ready_threads.
+    if (threads[running_thread]->getState() == RUNNING){
+        ready_threads.push(running_thread);
+    }
+
+
+    // begin running next thread in queue
+    running_thread = ready_threads.pop();
+    // set state of running thread to running
+
+    // call run for thread TODO should do other check beforehand?
+    threads[running_thread]->run();
 }

@@ -9,6 +9,8 @@
 #include <signal.h>
 #include <error.h>
 
+#define MAIN_TID 0
+
 class Scheduler {
 private:
     /* Timer components */
@@ -27,6 +29,17 @@ private:
 
     int get_free_tid();
     bool is_tid_valid(int tid);
+    /**
+     * this function moves along from the running thread to the next ready thread.
+     */
+    void pop_next_ready_thread();
+//    /**
+//     * this function frees all memory that the scheduler holds
+//     * it is called by the destructor
+//     * @return bool managed to free all memory
+//     */
+//    bool exit_scheduler();
+
 
 public:
     Scheduler(int quantum_usecs);
@@ -57,6 +70,7 @@ public:
 
     /**
      * Install timer_handler as the signal handler for SIGVTALRM.
+     * if this function is called, move thread to the end of the queue.
      * @return
      */
     bool install_signal_handler();
@@ -74,6 +88,7 @@ public:
      void timer_handler(int sig);
 
     int get_total_quanta_counter();
+
 
 };
 
