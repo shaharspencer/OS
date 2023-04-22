@@ -131,6 +131,30 @@ int Scheduler::block(int tid) {
     return SUCCESS;
 }
 
+int Scheduler::resume(int tid) {
+    /* assert tid is valid and threads[tid] exists, if not fail and return */
+    if(!is_tid_valid(tid)) {
+        throw new Error("terminate: tid is invalid or thread is nullptr");
+        return FAILURE;
+    }
+
+    /* resume depending on thread's state */
+    switch(threads[tid]->get_state()) {
+        case READY:
+        case RUNNING:
+            /* nothing needs to be done */
+            return SUCCESS;
+        case BLOCKED:
+            /* TODO remove from blocked_threads */
+            break;
+        default:
+            /* change thread's state to READY and add its tid to ready_threads */
+            threads[tid]->set_state(READY);
+            ready_threads->push(tid);
+    }
+    return SUCCESS;
+}
+
 bool install_signal_handler(){
     struct sigaction sa = {0};
     sa.sa_handler = &timer_handler;

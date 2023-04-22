@@ -71,7 +71,15 @@ public:
      */
     int block(int tid);
 
-    bool resume(int tid);
+    /**
+     * @brief Resumes a blocked thread with ID tid and moves it to the READY state.
+     *
+     * Resuming a thread in a RUNNING or READY state has no effect and is not considered as an error. If no thread with
+     * ID tid exists it is considered an error.
+     *
+     * @return On success, return 0. On failure, return -1.
+     */
+    int resume(int tid);
 
     bool sleep(int tid);
 
