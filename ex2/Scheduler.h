@@ -9,6 +9,10 @@
 #include <signal.h>
 #include <error.h>
 
+#define FAILURE (-1)
+#define SUCCESS 0
+#define MAIN_TID 0
+
 class Scheduler {
 private:
     /* Timer components */
@@ -81,7 +85,7 @@ public:
      */
     int resume(int tid);
 
-    bool sleep(int tid);
+    int sleep(int tid);
 
     /**
      * @brief Returns the thread ID of the calling thread.
@@ -106,7 +110,7 @@ public:
      * then move the next thread in the queue of READY threads to the RUNNING state.
      * @param sig signal to handle
      */
-     void timer_handler(int sig);
+    void timer_handler(int sig);
 
     int get_total_quanta_counter();
 

@@ -4,10 +4,6 @@
 #include <sys/time.h>
 #include <signal.h>
 
-#define FAILURE (-1)
-#define SUCCESS 0
-#define MAIN_TID 0
-
 Scheduler::Scheduler (int quantum_usecs) :
 quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
     ready_threads = new queue<int>();
