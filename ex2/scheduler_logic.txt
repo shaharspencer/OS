@@ -53,7 +53,7 @@ SLEEP
 (READY, ready_threads) --> (READY, sleeping_threads)
 (BLOCKED, blocked_threads) --> (BLOCKED, sleeping_threads)
 
-WAKE UP
+WAKE-UP
 =======
 (READY, sleeping_threads) --> (READY, ready_threads)
 (BLOCKED, sleeping_threads) --> (BLOCKED, blocked_threads)
