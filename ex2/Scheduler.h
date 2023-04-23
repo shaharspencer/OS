@@ -14,7 +14,7 @@
 #define FAILURE (-1)
 #define SUCCESS 0
 #define MAIN_TID 0
-#define RUNNING_THREAD_TERMINATED 100
+#define RUNNING_TERMINATED 100
 
 #define SYSTEM_ERROR "system error: "
 #define THREAD_LIBRARY_ERROR "thread library error: "

@@ -108,7 +108,7 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     return tid;
 }
 
-bool Scheduler::terminate(int tid) {
+int Scheduler::terminate(int tid) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if(!is_tid_valid(tid)) {
         throw new Error("terminate: tid is invalid or thread is nullptr");
@@ -117,30 +117,29 @@ bool Scheduler::terminate(int tid) {
 
     /* if main thread is terminated, end run */
     if(tid == MAIN_TID) {
-        // shouldn't happen
-        throw new Error("terminate: something weird happened, called with "
-                        "tid == MAIN_TID")
+        // TODO exit with dealloc
     }
 
+    /* dealloc and nullify threads[tid] */
+    delete threads[tid];
+    threads[tid] = nullptr;
+
     /* terminate depending on thread's state */
+    if(threads[tid]->get_sleeping_time() != AWAKE) {
+        sleeping_threads->erase(tid);
+        return SUCCESS;
+    }
     switch(threads[tid]->get_state()) {
         case READY:
             remove_from_ready(tid);
             break;
-        case RUNNING:
-            running_thread = RUNNING_THREAD_TERMINATED;
-            // call time_handler
-            break;
         case BLOCKED:
             blocked_threads->erase(tid);
             break;
+        case RUNNING:
+            running_thread = RUNNING_TERMINATED;
+            schedule();
     }
-    if(threads[tid]->is_sleeping()) {
-        // TODO handle sleeping
-    }
-    /* delete and nullify threads[tid] */
-    delete threads[tid];
-    threads[tid] = nullptr;
     return SUCCESS;
 }
 
@@ -157,21 +156,27 @@ int Scheduler::block(int tid) {
         return FAILURE;
     }
 
-    /* block depending on thread's state */
-    switch(threads[tid]->get_state()) {
-        case READY:
-            remove_from_ready(tid);
-            break;
-        case RUNNING:
-            // TODO scheduling should be done - involve timer_handler?
-            break;
-        case BLOCKED:
-            /* nothing needs to be done */
-            return SUCCESS;
-    }
-    /* change thread's state to BLOCKED and add its tid to blocked_threads */
+    /* save thread's current state for later structure handling */
+    State curr_state = threads[tid]->get_state();
+    /* change thread's state to BLOCKED */
     threads[tid]->set_state(BLOCKED);
-    blocked_threads->insert(tid);
+
+    /* if awake, change context to blocked depending on thread's state */
+    if(threads[tid]->get_sleeping_time() == AWAKE) {
+        switch(curr_state) {
+            case READY:
+                remove_from_ready(tid);
+                blocked_threads->
+                break;
+            case RUNNING:
+                running_thread = RUNNING_TERMINATED;
+                schedule();
+                break;
+            case BLOCKED:
+                /* nothing needs to be done */
+                break;
+        }
+    }
     return SUCCESS;
 }
 
@@ -182,17 +187,25 @@ int Scheduler::resume(int tid) {
         return FAILURE;
     }
 
+    /* save thread's current state for later structure handling */
+    State curr_state = threads[tid]->get_state();
+    /* change thread's state to READY */
+    threads[tid]->set_state(READY);
+
     /* resume depending on thread's state */
-    switch(threads[tid]->get_state()) {
-        case READY:
-        case RUNNING:
-            /* nothing needs to be done */
-            return SUCCESS;
-        case BLOCKED:
-            /* remove from blocked_threads */
-            blocked_threads->erase(tid);
-            break;
+    if(threads[tid]->get_sleeping_time() == AWAKE) {
+        switch(threads[tid]->get_state()) {
+            case READY:
+            case RUNNING:
+                /* nothing needs to be done */
+                return SUCCESS;
+            case BLOCKED:
+                /* remove from blocked_threads */
+                blocked_threads->erase(tid);
+                break;
+        }
     }
+
     /* change thread's state to READY and add its tid to ready_threads */
     threads[tid]->set_state(READY);
     ready_threads->push_back(tid);
@@ -255,7 +268,7 @@ void Scheduler::timer_handler(int sig){
     }
 
     /* if running thread isn't terminated, push to ready_threads and setjmp */
-    if(running_thread != RUNNING_THREAD_TERMINATED) {
+    if(running_thread != RUNNING_TERMINATED) {
         ready_threads->push_back(running_thread);
         threads[running_thread]->set_state(READY);
 
