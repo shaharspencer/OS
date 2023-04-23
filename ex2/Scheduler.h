@@ -31,16 +31,7 @@ private:
 
     int get_free_tid();
     bool is_tid_valid(int tid);
-    /**
-     * this function moves along from the running thread to the next ready thread.
-     */
-    void pop_next_ready_thread();
-//    /**
-//     * this function frees all memory that the scheduler holds
-//     * it is called by the destructor
-//     * @return bool managed to free all memory
-//     */
-//    bool exit_scheduler();
+
     void remove_from_ready(int tid);
     void remove_from_blocked(int tid);
 
@@ -128,8 +119,6 @@ public:
     void timer_handler(int sig);
 
     int get_total_quanta_counter();
-
-
 };
 
 

@@ -231,18 +231,3 @@ void Scheduler::timer_handler(int sig){
     /* finally, perform the longjmp to new running thread */
     threads[running_thread]->longjmp(1);
 }
-
-void pop_next_ready_thread(){
-    // deal with the running thread: either terminate or move to ready_threads.
-    if (threads[running_thread]->getState() == RUNNING){
-        ready_threads->push_back(running_thread);
-    }
-
-
-    // begin running next thread in queue
-    running_thread = ready_threads->pop_front();
-    // set state of running thread to running
-
-    // call run for thread TODO should do other check beforehand?
-    threads[running_thread]->run();
-}
