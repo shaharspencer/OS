@@ -1,7 +1,6 @@
 #include "Thread.h"
+
 #include <iostream>
-#include <setjmp.h>
-#include <signal.h>
 
 #ifdef __x86_64__
 /* code for 64 bit Intel arch */

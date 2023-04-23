@@ -1,8 +1,6 @@
 #include "Scheduler.h"
-#include <deque>
-#include <set>
-#include <sys/time.h>
-#include <signal.h>
+
+#include <iostream>
 
 using namespace std;
 

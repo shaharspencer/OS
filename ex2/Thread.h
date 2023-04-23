@@ -2,7 +2,9 @@
 #define UTHREADS_H_THREAD_H
 
 #include "uthreads.h"
+
 #include <setjmp.h>
+#include <signal.h>
 
 #define AWAKE 0
 

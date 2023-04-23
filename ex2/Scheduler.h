@@ -2,11 +2,14 @@
 #define UTHREADS_H_SCHEDULER_H
 
 #include "Thread.h"
+
+#include <signal.h>
+#include <setjmp.h>
+#include <sys/time.h>
+#include <error.h>
+
 #include <deque>
 #include <set>
-#include <sys/time.h>
-#include <signal.h>
-#include <error.h>
 
 #define FAILURE (-1)
 #define SUCCESS 0
