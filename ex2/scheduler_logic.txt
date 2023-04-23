@@ -1,0 +1,67 @@
+###################################
+#####  THE SCHEDULER'S LOGIC  #####
+###################################
+
+From the Scheduler's perspective, the state of a thread with ID number tid is
+defined by two attributes:
+
+- The thread's associated Thread object's unique state, as could be retrieved
+  using threads[tid]->get_state().
+  levels: READY, RUNNING, BLOCKED
+- The tid's unique location in the Scheduler's inner structures.
+  levels: running_thread, ready_threads, blocked_threads, sleeping_threads
+
+It is biased that the only valid tuples are:
+* (RUNNING, running_thread)
+* (READY, ready_threads)
+* (READY, sleeping_threads)
+* (BLOCKED, blocked_threads)
+* (BLOCKED, sleeping_threads)
+
+During it's run, the Scheduler maintains the validity of these parameters by
+one another and their tuple's correspondence to the thread's current desired
+state.
+
+#####################
+# STATE TRANSITIONS #
+#####################
+
+* NOTE: The mark (!!) implies a scheduling event occurs *
+
+SPAWN
+=====
+(*, *) --> (READY, ready_threads)
+
+SCHEDULE
+========
+(READY, ready_threads) --> (RUNNING, running_thread)
+
+BLOCK
+=====
+(RUNNING, running_thread) --> (BLOCKED, blocked_threads) !!
+(READY, ready_threads) --> (BLOCKED, blocked_threads)
+(READY, sleeping_threads) --> (BLOCKED, sleeping_threads)
+
+RESUME
+======
+(BLOCKED, blocked_threads) --> (READY, ready_threads)
+(BLOCKED, sleeping_threads) --> (READY, sleeping_threads)
+
+SLEEP
+=====
+(RUNNING, running_thread) --> (READY, sleeping_threads) !!
+(READY, ready_threads) --> (READY, sleeping_threads)
+(BLOCKED, blocked_threads) --> (BLOCKED, sleeping_threads)
+
+WAKE UP
+=======
+(READY, sleeping_threads) --> (READY, ready_threads)
+(BLOCKED, sleeping_threads) --> (BLOCKED, blocked_threads)
+
+TERMINATE
+=========
+(RUNNING, running_thread) --> (*, *) !!
+(READY, ready_threads) --> (*, *)
+(READY, sleeping_threads) --> (*, *)
+(BLOCKED, blocked_threads) --> (*, *)
+(BLOCKED, sleeping_threads) --> (*, *)
