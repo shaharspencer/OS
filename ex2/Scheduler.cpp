@@ -1,22 +1,27 @@
 #include "Scheduler.h"
-#include <queue>
+#include <deque>
 #include <set>
 #include <sys/time.h>
 #include <signal.h>
 
+using namespace std;
+
 Scheduler::Scheduler (int quantum_usecs) :
 quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
-    ready_threads = new queue<int>();
+    ready_threads = new deque<int>();
     blocked_threads = new set<int>();
     // TODO create main thread and put as threads[0]
-    spawn(main); // how?
+    spawn(MAIN_TID);
     running_thread = MAIN_TID;
-    ready_threads->pop();
+    ready_threads->pop_front();
     // TODO init Round-Robin
 }
 
 Scheduler::~Scheduler() {
-    // TODO implement exit method and call it
+    /* deletes all created threads */
+    for(int i = 0; i < MAX_THREAD_NUM; i++) {
+        delete threads[i];
+    }
 }
 
 int Scheduler::get_free_tid() {
@@ -32,6 +37,22 @@ bool Scheduler::is_tid_valid(int tid) {
     return tid >= 0 && tid < MAX_THREAD_NUM && threads[tid];
 }
 
+void Scheduler::remove_from_ready(int tid) {
+    /* assert tid validity */
+    if(!is_tid_valid(tid)) {
+        throw new Error("ready remove: tid invalid");
+        return;
+    }
+    /* advance along ready_threads, if current thread has same tid remove it */
+    for(auto it = ready_threads->begin(); it != ready_threads->end(); it++) {
+        if(*it == tid) {
+            ready_threads->erase(it);
+            return;
+        }
+    }
+    throw new Error("ready remove: tid not in ready");
+}
+
 int Scheduler::spawn(thread_entry_point entry_point) {
     /* get free tid if available, if not fail and return */
     int tid = get_free_tid();
@@ -41,7 +62,7 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     }
 
     /* make sure entry_point != nullptr */
-    if(!entry_point) {
+    if(entry_point == nullptr) {
         throw new Error("spawn: entry_point == nullptr"); // TODO remove later?
         return FAILURE;
     }
@@ -57,17 +78,11 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     /* assign new thread to threads list */
     threads[tid] = thread;
     /* since spawned thread is READY, push its tid to ready queue */
-    ready_threads->push(thread);
+    ready_threads->push_back(tid);
     return tid;
 }
 
 bool Scheduler::terminate(int tid) {
-    /* assert tid is valid and threads[tid] exists,
-     * if not fail and return */
-    if (tid == 0){
-        throw new Error("tried to run scheduler's terminate on main_thread, should not have reached here.")
-    }
-    if(!is_tid_valid(tid) || !threads[tid]) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if(!is_tid_valid(tid)) {
         throw new Error("terminate: tid is invalid or thread is nullptr");
@@ -76,19 +91,21 @@ bool Scheduler::terminate(int tid) {
 
     /* if main thread is terminated, end run */
     if(tid == MAIN_TID) {
-        // TODO implement exit_scheduler() w/ memory clearing
+        // shouldn't happen
+        throw new Error("terminate: something weird happened, called with "
+                        "tid == MAIN_TID")
     }
 
     /* terminate depending on thread's state */
     switch(threads[tid]->get_state()) {
         case READY:
-            // TODO remove from ready_threads
+            remove_from_ready(tid);
             break;
         case RUNNING:
-            // TODO set running_thread to none value
+            // TODO terminate running and schedule next ready -
             break;
         case BLOCKED:
-            // TODO remove from blocked_threads
+            blocked_threads->erase(tid);
             break;
         default:
             if(threads[tid]->is_sleeping()) {
@@ -117,7 +134,7 @@ int Scheduler::block(int tid) {
     /* block depending on thread's state */
     switch(threads[tid]->get_state()) {
         case READY:
-            // TODO remove from ready_threads
+            remove_from_ready(tid);
             break;
         case RUNNING:
             // TODO scheduling should be done
@@ -147,20 +164,19 @@ int Scheduler::resume(int tid) {
             /* nothing needs to be done */
             return SUCCESS;
         case BLOCKED:
-            /* TODO remove from blocked_threads */
+            /* remove from blocked_threads */
+            blocked_threads->erase(tid);
             break;
         default:
             /* change thread's state to READY and add its tid to ready_threads */
             threads[tid]->set_state(READY);
-            ready_threads->push(tid);
+            ready_threads->push_back(tid);
     }
     return SUCCESS;
 }
 
 int Scheduler::get_running_thread() {
     return running_thread;
-bool Scheduler::does_thread_exist(int tid){
-    return (is_tid_valid(tid) && threads.get(i) != NULL);
 }
 
 bool Scheduler::install_signal_handler(){
@@ -192,12 +208,12 @@ void Scheduler::timer_handler(int sig){
 void pop_next_ready_thread(){
     // deal with the running thread: either terminate or move to ready_threads.
     if (threads[running_thread]->getState() == RUNNING){
-        ready_threads.push(running_thread);
+        ready_threads->push_back(running_thread);
     }
 
 
     // begin running next thread in queue
-    running_thread = ready_threads.pop();
+    running_thread = ready_threads->pop_front();
     // set state of running thread to running
 
     // call run for thread TODO should do other check beforehand?

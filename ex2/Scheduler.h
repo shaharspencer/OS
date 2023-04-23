@@ -2,8 +2,7 @@
 #define UTHREADS_H_SCHEDULER_H
 
 #include "Thread.h"
-#include <memory>
-#include <queue>
+#include <deque>
 #include <set>
 #include <sys/time.h>
 #include <signal.h>
@@ -23,8 +22,8 @@ private:
     /* Threads components */
     Thread* threads[MAX_THREAD_NUM];
     int running_thread;
-    queue <int> *ready_threads;
-    set <int> *blocked_threads;
+    deque<int> *ready_threads;
+    set<int> *blocked_threads;
 
     /* Signals component */
     sigset_t signals;
@@ -41,6 +40,8 @@ private:
 //     * @return bool managed to free all memory
 //     */
 //    bool exit_scheduler();
+    void remove_from_ready(int tid);
+    void remove_from_blocked(int tid);
 
 
 public:

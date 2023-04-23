@@ -38,6 +38,7 @@ int uthread_spawn(thread_entry_point entry_point) {
 int uthread_terminate(int tid) {
     // if we want to destroy the main process, just exit the program
     if (tid == MAIN_TID){
+        delete scheduler;
         exit(0);
     }
     if (!scheduler->terminate(tid)) {
