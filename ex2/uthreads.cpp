@@ -1,15 +1,7 @@
 #include "uthreads.h"
-#include "Thread.h"
 #include "Scheduler.h"
-#include "init_helper.cpp"
 
-#define SYSTEM_ERROR "system error: %s\n"
-#define THREAD_LIBRARY_ERROR "thread library error: %s\n"
-
-#define SUCCESS 0
-#define FAILURE (-1)
-
-static std::unique_ptr<Scheduler> scheduler;
+static std::unique_ptr<Scheduler> scheduler; // TODO validate static use
 
 int uthread_init(int quantum_usecs) {
     if (quantum_usecs <= 0) {

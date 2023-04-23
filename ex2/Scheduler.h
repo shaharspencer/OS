@@ -13,6 +13,9 @@
 #define MAIN_TID 0
 #define RUNNING_THREAD_TERMINATED 100
 
+#define SYSTEM_ERROR "system error: "
+#define THREAD_LIBRARY_ERROR "thread library error: "
+
 class Scheduler {
 private:
     /* Timer components */
@@ -40,7 +43,7 @@ private:
      * if this function is called, move thread to the end of the queue.
      * @return
      */
-    bool install_timer_handler();
+    bool schedule();
 
     void increment_total_quanta_counter() { total_quanta_counter++; }
 
@@ -49,10 +52,18 @@ private:
     void handle_sleeping_threads();
 
 public:
+    /**
+     * @brief initializes the thread library.
+     *
+     * Once this function returns, the main thread (tid == 0) will be set as RUNNING. There is no need to
+     * provide an entry_point or to create a stack for the main thread - it will be using the "regular" stack and PC.
+     * You may assume that this function is called before any other thread library function, and that it is called
+     * exactly once.
+     * The input to the function is the length of a quantum in micro-seconds.
+     * It is an error to call this function with non-positive quantum_usecs.
+     */
     Scheduler(int quantum_usecs);
     ~Scheduler();
-
-    bool init();
 
     /**
      * @brief Creates a new thread, whose entry point is the function entry_point with the signature

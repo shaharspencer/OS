@@ -44,6 +44,7 @@ address_t translate_address(address_t addr) {
 
 #endif
 
+// TODO handle main thread scenario
 Thread::Thread(int tid, thread_entry_point entry_point) :
 tid(tid), state(READY), quanta_counter(0), sleeping_time(AWAKE) {
     /* Allocates pseudo-stack for the new thread */

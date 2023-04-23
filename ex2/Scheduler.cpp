@@ -9,6 +9,13 @@ using namespace std;
 // TODO make sure all
 // states change according to our reassignments
 
+// TODO define an exit func that deallocates all memory and exits with
+//  specific code, later add call to exit whenever needed
+
+// TODO re-evaluate logic of block() and resume() in context of sleep
+// i.e. whenever we block/resume a sleeping thread, we only change it's
+// state and not its queueing in data structures
+
 Scheduler::Scheduler (int quantum_usecs) :
 quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
 
@@ -22,7 +29,19 @@ quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
     running_thread = MAIN_TID;
     threads[MAIN_TID]->set_state(RUNNING);
     ready_threads->pop_front();
-    // TODO init Round-Robin handler installation
+
+    /* define signals to block/unblock during scheduling actions */
+    sigemptyset(&signals);
+    sigaddset(&signals, SIGVTALRM);
+    /* TODO figure out what is actually happening here */
+    if (sigprocmask(SIG_SETMASK, &signals, nullptr) < 0) {
+        std::cerr << SYSTEM_ERROR << "sigprocmask failed" << std::endl;
+        // TODO exit and dealloc memory
+        return;
+    }
+
+    /* immediately schedule main thread */
+    schedule();
 }
 
 Scheduler::~Scheduler() {
@@ -51,6 +70,7 @@ void Scheduler::remove_from_ready(int tid) {
         throw new Error("ready remove: tid invalid");
         return;
     }
+
     /* advance along ready_threads, if current thread has same tid remove it */
     for(auto it = ready_threads->begin(); it != ready_threads->end(); it++) {
         if(*it == tid) {
@@ -199,23 +219,40 @@ int Scheduler::get_running_thread() {
     return running_thread;
 }
 
-bool Scheduler::install_timer_handler(){
+void Scheduler::schedule() {
+    /* install timer_handler as action for SIGVTALRM */
     struct sigaction sa = {0};
     sa.sa_handler = &timer_handler;
-    if (sigaction(SIGVTALRM, &sa, nullptr) < 0)
-    {
+    if(sigaction(SIGVTALRM, &sa, nullptr) < 0) {
         // TODO handle error
         printf("sigaction error.");
-        return false;
+        return;
     }
-    return true;
+
+    /* set the timer for given quantum */
+    timer.it_value.tv_sec = quantum / 1e6;
+    timer.it_value.tv_usec = quantum % 1e6;
+    timer.it_interval.tv_sec = quantum / 1e6;
+    timer.it_interval.tv_usec = quantum % 1e6;
+    if(setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
+        std::cerr << SYSTEM_ERROR << "setitimer failed" << std::endl;
+        throw new Error("timer init: setitimer failed.");
+        // TODO exit
+        return;
+    }
+
+    /* force context switch to occur */
+    timer_handler(SIGVTALRM);
 }
 
-
 void Scheduler::timer_handler(int sig){
+    /* block signals with sigprocmask */
+    // TODO block
+
     /* assert signal is correct, if not fail and return */
     if(sig != SIGVTALRM) {
-        throw new Error("timer handler: wrong signal");
+        // TODO unblock
+        throw new Error("timer handler: wrong signal"); // TODO remove later
         return;
     }
 
@@ -224,9 +261,9 @@ void Scheduler::timer_handler(int sig){
         ready_threads->push_back(running_thread);
         threads[running_thread]->set_state(READY);
 
-        /* assert sigsetjmp succeeded */
+        /* case where sigsetjmp succeeded with return value 0 */
         if(threads[running_thread]->setjmp() != 0) {
-            throw new Error("timer handler: setjmp failed");
+            // TODO unblock sigs
             return;
         }
     }
@@ -236,7 +273,7 @@ void Scheduler::timer_handler(int sig){
         return;
     }
 
-    /* set timer for quantum and longjmp to next thread to run */
+    /* set next ready thread as new running thread */
     running_thread = ready_threads->front();
     threads[running_thread]->set_state(RUNNING);
     ready_threads->pop_front();
@@ -249,29 +286,40 @@ void Scheduler::timer_handler(int sig){
     handle_sleeping_threads();
 
     /* set timer and assert success */
-    if(setitimer(ITIMER_VIRTUAL, &timer, nullptr) == 0) {
+    if(setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
         throw new Error("timer handler: setitimer failed");
+        // TODO exit safely with memory freeing
     }
 
     /* finally, perform the longjmp to new running thread */
+    // TODO unblock sigs
     threads[running_thread]->longjmp(1);
 }
 
 void Scheduler::handle_sleeping_threads() {
-    set<int> *wake_up = new set<int>();
+    /* a set to hold tids of threads in need to wake up */
+    set<int> *wake_up = new set<int>();  // TODO seems like a problem ):
+
+    /* for every sleeping thread, decrement its quanta remainder by 1 */
     for(int* it : sleeping_threads) {
         threads[*it]->decrement_sleeping_time();
+        /* if time remaining to sleep is 0, add to wake up */
         if(threads[*it]->get_sleeping_time() == AWAKE) {
             wake_up->insert(*it);
         }
     }
+
+    /* wake up threads that finished sleeping */
     for(int* it : wake_up) {
+        /* remove from sleeping_threads */
         sleeping_threads->erase(*it);
+        /* wake up to correct state */
         switch(threads[*it]->get_state()) {
             case READY:
                 ready_threads->push_back(*it);
                 break;
             case BLOCKED:
+                // TODO
                 return;
             case RUNNING:
                 throw new Error("sleeping handle: can't wake up running "
