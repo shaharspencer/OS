@@ -53,3 +53,12 @@ bar() {
     }
     siglongjmp(_buf, 15); // jump to _buf bookmark with value 15
 }
+
+#######
+
+set<int> *sleeping_threads;
+in timer_handler:
+    for thread in sleeping:
+        sleeping_time--;
+        if sleeping_time == 0:
+            remove from sleeping;

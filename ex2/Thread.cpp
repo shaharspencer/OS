@@ -45,7 +45,7 @@ address_t translate_address(address_t addr) {
 #endif
 
 Thread::Thread(int tid, thread_entry_point entry_point) :
-tid(tid), state(READY), quanta_counter(0) {
+tid(tid), state(READY), quanta_counter(0), sleeping_time(AWAKE) {
     /* Allocates pseudo-stack for the new thread */
     stack = new char[STACK_SIZE];
     if(!stack) {
@@ -75,10 +75,6 @@ State Thread::get_state() {
 
 void Thread::set_state(State s) {
     state = s;
-}
-
-bool Thread::is_sleeping() {
-    return sleeping;
 }
 
 sigjmp_buf &Thread::get_env() {

@@ -6,15 +6,23 @@
 
 using namespace std;
 
+// TODO make sure all
+// states change according to our reassignments
+
 Scheduler::Scheduler (int quantum_usecs) :
 quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
+
+    /* create data structures */
     ready_threads = new deque<int>();
     blocked_threads = new set<int>();
-    // TODO create main thread and put as threads[0]
+    sleeping_threads = new set<int>();
+
+    /* create main thread and schedule it immediately */
     spawn(MAIN_TID);
     running_thread = MAIN_TID;
+    threads[MAIN_TID]->set_state(RUNNING);
     ready_threads->pop_front();
-    // TODO init Round-Robin
+    // TODO init Round-Robin handler installation
 }
 
 Scheduler::~Scheduler() {
@@ -173,6 +181,20 @@ int Scheduler::resume(int tid) {
     return SUCCESS;
 }
 
+int Scheduler::sleep(int num_quanta) {
+    /* assert num_quanta is valid, if not fail and return */
+    if(num_quanta < 0) {
+        throw new Error("sleep: negative time");
+        return FAILURE;
+    }
+
+    /* assert running thread isn't main thread, if so fail and return */
+    if(running_thread == MAIN_TID) {
+        throw new Error("sleep: can't put main thread to sleep");
+        return FAILURE;
+    }
+}
+
 int Scheduler::get_running_thread() {
     return running_thread;
 }
@@ -200,8 +222,8 @@ void Scheduler::timer_handler(int sig){
     /* if running thread isn't terminated, push to ready_threads and setjmp */
     if(running_thread != RUNNING_THREAD_TERMINATED) {
         ready_threads->push_back(running_thread);
-        threads[running_thread]->set_state(READY); // TODO make sure all
-        // states change according to our reassignments
+        threads[running_thread]->set_state(READY);
+
         /* assert sigsetjmp succeeded */
         if(threads[running_thread]->setjmp() != 0) {
             throw new Error("timer handler: setjmp failed");
@@ -223,6 +245,9 @@ void Scheduler::timer_handler(int sig){
     threads[running_thread]->increment_quanta_counter();
     increment_total_quanta_counter();
 
+    /* manage the sleeping threads */
+    handle_sleeping_threads();
+
     /* set timer and assert success */
     if(setitimer(ITIMER_VIRTUAL, &timer, nullptr) == 0) {
         throw new Error("timer handler: setitimer failed");
@@ -230,4 +255,27 @@ void Scheduler::timer_handler(int sig){
 
     /* finally, perform the longjmp to new running thread */
     threads[running_thread]->longjmp(1);
+}
+
+void Scheduler::handle_sleeping_threads() {
+    set<int> *wake_up = new set<int>();
+    for(int* it : sleeping_threads) {
+        threads[*it]->decrement_sleeping_time();
+        if(threads[*it]->get_sleeping_time() == AWAKE) {
+            wake_up->insert(*it);
+        }
+    }
+    for(int* it : wake_up) {
+        sleeping_threads->erase(*it);
+        switch(threads[*it]->get_state()) {
+            case READY:
+                ready_threads->push_back(*it);
+                break;
+            case BLOCKED:
+                return;
+            case RUNNING:
+                throw new Error("sleeping handle: can't wake up running "
+                                "thread");
+        }
+    }
 }

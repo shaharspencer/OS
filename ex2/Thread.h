@@ -4,6 +4,8 @@
 #include "uthreads.h"
 #include <setjmp.h>
 
+#define AWAKE 0
+
 typedef enum State {
     RUNNING,
     READY,
@@ -14,7 +16,7 @@ class Thread {
 private:
     int tid;
     State state;
-    bool sleeping;
+    int sleeping_time;
     char* stack;
     sigjmp_buf env;
     int quanta_counter;
@@ -29,7 +31,11 @@ public:
 
     void set_state(State s);
 
-    bool is_sleeping();
+    int get_sleeping_time() { return sleeping_time; }
+
+    void set_sleeping_time(int num_quanta) { sleeping_time = num_quanta; }
+
+    void decrement_sleeping_time() { sleeping_time--; }
 
     sigjmp_buf &get_env();
 
