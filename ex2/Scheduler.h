@@ -11,6 +11,7 @@
 #define FAILURE (-1)
 #define SUCCESS 0
 #define MAIN_TID 0
+#define RUNNING_THREAD_TERMINATED 100
 
 class Scheduler {
 private:
@@ -43,6 +44,14 @@ private:
     void remove_from_ready(int tid);
     void remove_from_blocked(int tid);
 
+    /**
+     * Install timer_handler as the signal handler for SIGVTALRM.
+     * if this function is called, move thread to the end of the queue.
+     * @return
+     */
+    bool install_timer_handler();
+
+    void increment_total_quanta_counter() { total_quanta_counter++; }
 
 public:
     Scheduler(int quantum_usecs);
@@ -105,13 +114,6 @@ public:
      * @return The ID of the calling thread.
      */
     int get_running_thread();
-
-    /**
-     * Install timer_handler as the signal handler for SIGVTALRM.
-     * if this function is called, move thread to the end of the queue.
-     * @return
-     */
-    bool install_signal_handler();
 
     /**
      * this method is the signal handler for SIGVTALRM.

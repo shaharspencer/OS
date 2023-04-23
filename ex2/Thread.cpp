@@ -1,5 +1,7 @@
 #include "Thread.h"
 #include <iostream>
+#include <setjmp.h>
+#include <signal.h>
 
 #ifdef __x86_64__
 /* code for 64 bit Intel arch */
@@ -53,10 +55,10 @@ tid(tid), state(READY), quanta_counter(0) {
     /* Initializes env, same as in demo_jmp.c */
     address_t sp = (address_t) stack + STACK_SIZE - sizeof(address_t);
     address_t pc = (address_t) entry_point;
-    sigsetjmp(env, 1); // TODO figure mask, check return value
+    sigsetjmp(env, 1);
     (env->__jmpbuf)[JB_SP] = translate_address(sp);
     (env->__jmpbuf)[JB_PC] = translate_address(pc);
-    sigemptyset(&env->__saved_mask); // TODO check return value
+    sigemptyset(&env->__saved_mask);
 }
 
 Thread::~Thread() {
@@ -89,4 +91,12 @@ int Thread::get_quanta_counter() {
 
 void Thread::increment_quanta_counter() {
     quanta_counter++;
+}
+
+int Thread::setjmp() {
+    return sigsetjmp(env, 1);
+}
+
+void Thread::longjmp(int val) {
+    siglongjmp(env, val);
 }

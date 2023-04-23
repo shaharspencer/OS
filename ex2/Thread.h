@@ -37,6 +37,12 @@ public:
 
     void increment_quanta_counter();
 
+    int setjmp();
+
+    void longjmp(int val);
+
+
+
 
     /**
      * this method runs the thread: calls sigsetjmp and siglong jmp, and sets

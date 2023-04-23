@@ -28,3 +28,28 @@ void thread0 () {
     uthread_terminate(this thread's tid); // by assumption 1
     return;
 }
+
+#####
+
+int main() {
+    static sigjmp_buf _buf;
+    if(sigsetjmp(_buf) != 27) {  // whenever we call siglongjmp(_buf) we will
+                                    "return" here with the value we sent, first
+                                     time it will return 0
+        foo();
+    } else {
+        bar();
+    }
+    return 0;
+}
+
+foo() {
+    siglongjmp(_buf, 27); // jump to _buf bookmark with value 27
+}
+
+bar() {
+    if(sigsetjmp(_buf) == 15) {
+        return;
+    }
+    siglongjmp(_buf, 15); // jump to _buf bookmark with value 15
+}
