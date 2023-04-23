@@ -33,7 +33,6 @@ private:
     bool is_tid_valid(int tid);
 
     void remove_from_ready(int tid);
-    void remove_from_blocked(int tid);
 
     /**
      * Install timer_handler as the signal handler for SIGVTALRM.
