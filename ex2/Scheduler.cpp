@@ -102,19 +102,19 @@ bool Scheduler::terminate(int tid) {
             remove_from_ready(tid);
             break;
         case RUNNING:
-            // TODO terminate running and schedule next ready -
+            // TODO terminate running and schedule next ready - involve
+            //  timer_handler?
             break;
         case BLOCKED:
             blocked_threads->erase(tid);
             break;
-        default:
-            if(threads[tid]->is_sleeping()) {
-                // TODO handle sleeping
-            }
-            /* delete and nullify threads[tid] */
-            delete threads[tid];
-            threads[tid] = nullptr;
     }
+    if(threads[tid]->is_sleeping()) {
+        // TODO handle sleeping
+    }
+    /* delete and nullify threads[tid] */
+    delete threads[tid];
+    threads[tid] = nullptr;
     return SUCCESS;
 }
 
@@ -137,16 +137,15 @@ int Scheduler::block(int tid) {
             remove_from_ready(tid);
             break;
         case RUNNING:
-            // TODO scheduling should be done
+            // TODO scheduling should be done - involve timer_handler?
             break;
         case BLOCKED:
             /* nothing needs to be done */
             return SUCCESS;
-        default:
-            /* change thread's state to BLOCKED and add its tid to blocked_threads */
-            threads[tid]->set_state(BLOCKED);
-            blocked_threads->insert(tid);
     }
+    /* change thread's state to BLOCKED and add its tid to blocked_threads */
+    threads[tid]->set_state(BLOCKED);
+    blocked_threads->insert(tid);
     return SUCCESS;
 }
 
@@ -167,11 +166,10 @@ int Scheduler::resume(int tid) {
             /* remove from blocked_threads */
             blocked_threads->erase(tid);
             break;
-        default:
-            /* change thread's state to READY and add its tid to ready_threads */
-            threads[tid]->set_state(READY);
-            ready_threads->push_back(tid);
     }
+    /* change thread's state to READY and add its tid to ready_threads */
+    threads[tid]->set_state(READY);
+    ready_threads->push_back(tid);
     return SUCCESS;
 }
 
