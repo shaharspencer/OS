@@ -89,10 +89,10 @@ void Thread::increment_quanta_counter() {
     quanta_counter++;
 }
 
-int Thread::setjmp() {
+int Thread::thread_sigsetsetjmp() {
     return sigsetjmp(env, 1);
 }
 
-void Thread::longjmp(int val) {
+void Thread::thread_siglongjmp(int val) {
     siglongjmp(env, val);
 }

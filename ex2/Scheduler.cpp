@@ -4,15 +4,8 @@
 
 using namespace std;
 
-// TODO make sure all
-// states change according to our reassignments
-
 // TODO define an exit func that deallocates all memory and exits with
 //  specific code, later add call to exit whenever needed
-
-// TODO re-evaluate logic of block() and resume() in context of sleep
-// i.e. whenever we block/resume a sleeping thread, we only change it's
-// state and not its queueing in data structures
 
 Scheduler::Scheduler (int quantum_usecs) :
 quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
@@ -111,7 +104,6 @@ int Scheduler::spawn(thread_entry_point entry_point) {
 int Scheduler::terminate(int tid) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if(!is_tid_valid(tid)) {
-        throw new Error("terminate: tid is invalid or thread is nullptr");
         return FAILURE;
     }
 
@@ -137,7 +129,7 @@ int Scheduler::terminate(int tid) {
             blocked_threads->erase(tid);
             break;
         case RUNNING:
-            running_thread = RUNNING_TERMINATED;
+            running_thread = PREEMPTED;
             schedule();
     }
     return SUCCESS;
@@ -161,19 +153,20 @@ int Scheduler::block(int tid) {
     /* change thread's state to BLOCKED */
     threads[tid]->set_state(BLOCKED);
 
-    /* if awake, change context to blocked depending on thread's state */
+    /* change data structure depending on thread's state */
     if(threads[tid]->get_sleeping_time() == AWAKE) {
         switch(curr_state) {
             case READY:
                 remove_from_ready(tid);
-                blocked_threads->
-                break;
-            case RUNNING:
-                running_thread = RUNNING_TERMINATED;
-                schedule();
+                blocked_threads->insert(tid);
                 break;
             case BLOCKED:
                 /* nothing needs to be done */
+                break;
+            case RUNNING:
+                running_thread = PREEMPTED;
+                blocked_threads->insert(tid);
+                schedule();
                 break;
         }
     }
@@ -192,23 +185,20 @@ int Scheduler::resume(int tid) {
     /* change thread's state to READY */
     threads[tid]->set_state(READY);
 
-    /* resume depending on thread's state */
+    /* change data structure depending on thread's state */
     if(threads[tid]->get_sleeping_time() == AWAKE) {
         switch(threads[tid]->get_state()) {
-            case READY:
             case RUNNING:
+            case READY:
                 /* nothing needs to be done */
                 return SUCCESS;
             case BLOCKED:
                 /* remove from blocked_threads */
                 blocked_threads->erase(tid);
+                ready_threads->push_back(tid);
                 break;
         }
     }
-
-    /* change thread's state to READY and add its tid to ready_threads */
-    threads[tid]->set_state(READY);
-    ready_threads->push_back(tid);
     return SUCCESS;
 }
 
@@ -224,10 +214,16 @@ int Scheduler::sleep(int num_quanta) {
         throw new Error("sleep: can't put main thread to sleep");
         return FAILURE;
     }
-}
 
-int Scheduler::get_running_thread() {
-    return running_thread;
+    /* set thread's state to READY and its sleeping timer */
+    threads[running_thread]->set_state(READY);
+    threads[running_thread]->set_sleeping_time(num_quanta);
+
+    /* change data structure */
+    sleeping_threads->insert(running_thread);
+    running_thread = PREEMPTED;
+    schedule();
+    return SUCCESS;
 }
 
 void Scheduler::schedule() {
@@ -256,6 +252,16 @@ void Scheduler::schedule() {
     timer_handler(SIGVTALRM);
 }
 
+/**
+ * this method is the signal handler for SIGVTALRM.
+ * it recieves a signal sig as input.
+ * if the signal is not SIGVTALRM ???
+ * When the RUNNING thread is preempted, do the following:
+ * If it was preempted because its quantum has expired, move it to the end of the
+ * READY threads list.
+ * then move the next thread in the queue of READY threads to the RUNNING state.
+ * @param sig signal to handle
+ */
 void Scheduler::timer_handler(int sig){
     /* block signals with sigprocmask */
     // TODO block
@@ -268,12 +274,12 @@ void Scheduler::timer_handler(int sig){
     }
 
     /* if running thread isn't terminated, push to ready_threads and setjmp */
-    if(running_thread != RUNNING_TERMINATED) {
+    if(running_thread != PREEMPTED) {
         ready_threads->push_back(running_thread);
         threads[running_thread]->set_state(READY);
 
         /* case where sigsetjmp succeeded with return value 0 */
-        if(threads[running_thread]->setjmp() != 0) {
+        if(threads[running_thread]->thread_sigsetsetjmp() != 0) {
             // TODO unblock sigs
             return;
         }
@@ -304,12 +310,14 @@ void Scheduler::timer_handler(int sig){
 
     /* finally, perform the longjmp to new running thread */
     // TODO unblock sigs
-    threads[running_thread]->longjmp(1);
+    threads[running_thread]->thread_siglongjmp(1);
 }
 
+/** decrement sleeping time of sleeping threads,
+  * if a thread reaches AWAKE remove it from sleeping */
 void Scheduler::handle_sleeping_threads() {
     /* a set to hold tids of threads in need to wake up */
-    set<int> *wake_up = new set<int>();  // TODO seems like a problem ):
+    auto wake_up = new set<int>();  // TODO seems like a problem ):
 
     /* for every sleeping thread, decrement its quanta remainder by 1 */
     for(int* it : sleeping_threads) {
@@ -330,11 +338,21 @@ void Scheduler::handle_sleeping_threads() {
                 ready_threads->push_back(*it);
                 break;
             case BLOCKED:
-                // TODO
+                blocked_threads->insert(*it);
                 return;
             case RUNNING:
                 throw new Error("sleeping handle: can't wake up running "
-                                "thread");
+                                "thread"); // TODO shouldn't happen
         }
     }
+}
+
+int Scheduler::get_quanta_counter(int tid) {
+    /* assert tid is valid and threads[tid] exists, if not fail and return */
+    if(!is_tid_valid(tid)) {
+        throw new Error("terminate: tid is invalid or thread is nullptr");
+        return FAILURE;
+    }
+
+    return threads[tid]->get_quanta_counter();
 }

@@ -7,11 +7,11 @@ defined by two attributes:
 
 - The thread's associated Thread object's unique state, as could be retrieved
   using threads[tid]->get_state().
-  levels: READY, RUNNING, BLOCKED
+  levels: RUNNING, READY, BLOCKED
 - The tid's unique location in the Scheduler's inner structures.
   levels: running_thread, ready_threads, blocked_threads, sleeping_threads
 
-It is biased that the only valid tuples are:
+The only valid tuples are:
 * (RUNNING, running_thread)
 * (READY, ready_threads)
 * (READY, sleeping_threads)

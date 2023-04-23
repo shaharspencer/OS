@@ -14,7 +14,7 @@
 #define FAILURE (-1)
 #define SUCCESS 0
 #define MAIN_TID 0
-#define RUNNING_TERMINATED 100
+#define PREEMPTED 100
 
 #define SYSTEM_ERROR "system error: "
 #define THREAD_LIBRARY_ERROR "thread library error: "
@@ -25,34 +25,28 @@ private:
     const suseconds_t quantum;
     struct itimer timer;
     int total_quanta_counter;
+    void increment_total_quanta_counter() { total_quanta_counter++; }
 
     /* Threads components */
     Thread* threads[MAX_THREAD_NUM];
+    int get_free_tid();
+    bool is_tid_valid(int tid);
     int running_thread;
+    void timer_handler(int sig);
+    bool schedule();
     deque<int> *ready_threads;
+    void remove_from_ready(int tid);
     set<int> *blocked_threads;
     set<int> *sleeping_threads;
+    void handle_sleeping_threads();
 
     /* Signals component */
     sigset_t signals;
+    int sigprocmask_block(); // TODO implement
+    int sigprocmask_unblock(); // TODO implement
 
-    int get_free_tid();
-    bool is_tid_valid(int tid);
-
-    void remove_from_ready(int tid);
-
-    /**
-     * Install timer_handler as the signal handler for SIGVTALRM.
-     * if this function is called, move thread to the end of the queue.
-     * @return
-     */
-    bool schedule();
-
-    void increment_total_quanta_counter() { total_quanta_counter++; }
-
-    /* decrement sleeping time of sleeping threads,
-     * if a thread reaches AWAKE remove it from sleeping */
-    void handle_sleeping_threads();
+    /* A method to exit the Scheduler's run and dealloc all data */
+    void exit_scheduler(int code); // TODO implement
 
 public:
     /**
@@ -135,21 +129,29 @@ public:
      *
      * @return The ID of the calling thread.
      */
-    int get_running_thread();
+    int get_running_thread() { return running_thread; }
 
     /**
-     * this method is the signal handler for SIGVTALRM.
-     * it recieves a signal sig as input.
-     * if the signal is not SIGVTALRM ???
-     * When the RUNNING thread is preempted, do the following:
-     * If it was preempted because its quantum has expired, move it to the end of the
-     * READY threads list.
-     * then move the next thread in the queue of READY threads to the RUNNING state.
-     * @param sig signal to handle
+     * @brief Returns the total number of quantums since the library was
+     * initialized, including the current quantum.
+     *
+     * Right after the call to uthread_init, the value should be 1.
+     * Each time a new quantum starts, regardless of the reason, this number should be increased by 1.
+     *
+     * @return The total number of quantums.
      */
-    void timer_handler(int sig);
+    int get_total_quanta_counter() { return total_quanta_counter; }
 
-    int get_total_quanta_counter();
+    /**
+     * @brief Returns the number of quantums the thread with ID tid was in RUNNING state.
+     *
+     * On the first time a thread runs, the function should return 1. Every additional quantum that the thread starts should
+     * increase this value by 1 (so if the thread with ID tid is in RUNNING state when this function is called, include
+     * also the current quantum). If no thread with ID tid exists it is considered an error.
+     *
+     * @return On success, return the number of quantums of the thread with ID tid. On failure, return -1.
+     */
+    int get_quanta_counter(int tid);
 };
 
 

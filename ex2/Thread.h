@@ -45,30 +45,9 @@ public:
 
     void increment_quanta_counter();
 
-    int setjmp();
+    int thread_sigsetsetjmp();
 
-    void longjmp(int val);
-
-
-
-
-    /**
-     * this method runs the thread: calls sigsetjmp and siglong jmp, and sets
-     * the current state to RUNNING.
-     */
-    void run(){
-        this->set_state(RUNNING);
-        int return_val = sigsetjmp(this->get_env(), 1); //TODO check mask
-        // if the return value was returned from siglongjmp, as in we called sigsetjmp before
-        if (return_val != 0){
-            return;
-        }
-        // start timer? TODO understand where
-        // should there be some sognal change?
-        this->increment_quanta_counter();
-
-        siglongjmp(this->get_env(), 1); // TODO check mask
-    }
+    void thread_siglongjmp(int val);
 };
 
 
