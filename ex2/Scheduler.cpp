@@ -285,7 +285,6 @@ int Scheduler::sleep(int num_quanta) {
     catch (const std::system_error& e){
         throw e;
     }
-    schedule();
     sigprocmask_unblock();
     return SUCCESS;
 }
@@ -331,8 +330,7 @@ void Scheduler::schedule() {
  * then move the next thread in the queue of READY threads to the RUNNING state.
  * @param sig signal to handle
  */
-void Scheduler::timer_handler(int sig) {
-    sigprocmask_block();
+
 static void Scheduler::timer_handler(int sig) {
     /* block signals with sigprocmask */
     // TODO block
@@ -340,7 +338,8 @@ static void Scheduler::timer_handler(int sig) {
     /* assert signal is correct, if not fail and return */
     if (sig != SIGVTALRM) {
         // TODO unblock
-        throw std::system_error(errno, std::generic_category(), SYSTEM_ERROR +"timer handler: wrong signal\n");
+        throw std::system_error(errno, std::generic_category(),
+                                SYSTEM_ERROR +"timer handler: wrong signal\n");
     }
 
     /* if running thread isn't terminated, push to ready_threads and setjmp */
