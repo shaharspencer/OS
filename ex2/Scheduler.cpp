@@ -7,6 +7,8 @@ Scheduler::Scheduler(int quantum_usecs) :
         quantum((suseconds_t) quantum_usecs),
         timer({0, 0, 0, 0}), total_quanta_counter(0) {
 
+    instance = this;
+
     /* create data structures */
     ready_threads = new std::deque<int>();
     blocked_threads = new std::set<int>();
@@ -42,8 +44,6 @@ Scheduler::Scheduler(int quantum_usecs) :
     catch (const std::system_error& e){
         throw e;
     }
-
-    instance = this;
 }
 
 Scheduler::~Scheduler() {
