@@ -19,9 +19,6 @@
 #define THREAD_LIBRARY_ERROR "thread library error"
 
 #define MEMORY_ALLOC_FAILED "memory allocation failed"
-#define
-
-std::cerr << SYSTEM_ERROR << MEMORY_ALLOC_FAILED << std::endl;
 
 class Scheduler {
 private:
