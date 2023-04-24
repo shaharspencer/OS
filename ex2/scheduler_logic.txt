@@ -50,8 +50,6 @@ RESUME
 SLEEP
 =====
 (RUNNING, running_thread) --> (READY, sleeping_threads) !!
-(READY, ready_threads) --> (READY, sleeping_threads)
-(BLOCKED, blocked_threads) --> (BLOCKED, sleeping_threads)
 
 WAKE-UP
 =======

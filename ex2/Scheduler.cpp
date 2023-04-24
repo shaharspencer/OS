@@ -75,17 +75,21 @@ void Scheduler::remove_from_ready(int tid) {
 }
 
 int Scheduler::spawn(thread_entry_point entry_point) {
+    sigprocmask_block();
+
     /* get free tid if available, if not fail and return */
     int tid = get_free_tid();
     if (tid == FAILURE) {
         throw std::invalid_argument(THREAD_LIBRARY_ERROR);
         new std::exception() Error("spawn: no free tid"); // TODO remove when done
+        sigprocmask_unblock();
         return FAILURE;
     }
 
     /* make sure entry_point != nullptr */
     if (entry_point == nullptr) {
         throw new Error("spawn: entry_point == nullptr"); // TODO remove later?
+        sigprocmask_unblock();
         return FAILURE;
     }
 
@@ -101,12 +105,17 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     threads[tid] = thread;
     /* since spawned thread is READY, push its tid to ready queue */
     ready_threads->push_back(tid);
+    sigprocmask_unblock();
     return tid;
 }
 
 int Scheduler::terminate(int tid) {
+    sigprocmask_block();
+
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
+        // TODO throw library error
+        sigprocmask_unblock();
         return FAILURE;
     }
 
@@ -119,6 +128,7 @@ int Scheduler::terminate(int tid) {
     /* terminate depending on thread's state */
     if (threads[tid]->get_sleeping_time() != AWAKE) {
         sleeping_threads->erase(tid);
+        sigprocmask_unblock();
         return SUCCESS;
     }
     switch (threads[tid]->get_state()) {
@@ -132,19 +142,24 @@ int Scheduler::terminate(int tid) {
             running_thread = PREEMPTED;
             schedule();
     }
+    sigprocmask_unblock();
     return SUCCESS;
 }
 
 int Scheduler::block(int tid) {
+    sigprocmask_block();
+
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
         throw new Error("terminate: tid is invalid or thread is nullptr");
+        sigprocmask_unblock();
         return FAILURE;
     }
 
     /* assert main thread isn't being blocked */
     if (tid == MAIN_TID) {
         throw new Error("terminate: can't block main thread");
+        sigprocmask_unblock();
         return FAILURE;
     }
 
@@ -170,13 +185,17 @@ int Scheduler::block(int tid) {
                 break;
         }
     }
+    sigprocmask_unblock();
     return SUCCESS;
 }
 
 int Scheduler::resume(int tid) {
+    sigprocmask_block();
+
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
         throw new Error("terminate: tid is invalid or thread is nullptr");
+        sigprocmask_unblock();
         return FAILURE;
     }
 
@@ -191,6 +210,7 @@ int Scheduler::resume(int tid) {
             case RUNNING:
             case READY:
                 /* nothing needs to be done */
+                sigprocmask_unblock();
                 return SUCCESS;
             case BLOCKED:
                 /* remove from blocked_threads */
@@ -199,19 +219,24 @@ int Scheduler::resume(int tid) {
                 break;
         }
     }
+    sigprocmask_unblock();
     return SUCCESS;
 }
 
 int Scheduler::sleep(int num_quanta) {
+    sigprocmask_block();
+
     /* assert num_quanta is valid, if not fail and return */
     if (num_quanta < 0) {
         throw new Error("sleep: negative time");
+        sigprocmask_unblock();
         return FAILURE;
     }
 
     /* assert running thread isn't main thread, if so fail and return */
     if (running_thread == MAIN_TID) {
         throw new Error("sleep: can't put main thread to sleep");
+        sigprocmask_unblock();
         return FAILURE;
     }
 
@@ -223,16 +248,20 @@ int Scheduler::sleep(int num_quanta) {
     sleeping_threads->insert(running_thread);
     running_thread = PREEMPTED;
     schedule();
+    sigprocmask_unblock();
     return SUCCESS;
 }
 
 void Scheduler::schedule() {
+    sigprocmask_block();
+
     /* install timer_handler as action for SIGVTALRM */
     struct sigaction sa = {0};
     sa.sa_handler = &timer_handler;
     if (sigaction(SIGVTALRM, &sa, nullptr) < 0) {
-        // TODO handle error
+        // TODO handle system error
         printf("sigaction error.");
+        sigprocmask_unblock();
         return;
     }
 
@@ -245,6 +274,7 @@ void Scheduler::schedule() {
         std::cerr << SYSTEM_ERROR << "setitimer failed" << std::endl;
         throw new Error("timer init: setitimer failed.");
         // TODO exit
+        sigprocmask_unblock();
         return;
     }
 
@@ -263,13 +293,13 @@ void Scheduler::schedule() {
  * @param sig signal to handle
  */
 void Scheduler::timer_handler(int sig) {
-    /* block signals with sigprocmask */
-    // TODO block
+    sigprocmask_block();
 
     /* assert signal is correct, if not fail and return */
     if (sig != SIGVTALRM) {
         // TODO unblock
         throw new Error("timer handler: wrong signal"); // TODO remove later
+        sigprocmask_unblock();
         return;
     }
 
@@ -280,13 +310,14 @@ void Scheduler::timer_handler(int sig) {
 
         /* case where sigsetjmp succeeded with return value 0 */
         if (threads[running_thread]->thread_sigsetsetjmp() != 0) {
-            // TODO unblock sigs
+            sigprocmask_unblock();
             return;
         }
     }
 
     /* if no threads are awaiting execution, do nothing */
     if (ready_threads->empty()) {
+        sigprocmask_unblock();
         return;
     }
 
@@ -306,10 +337,11 @@ void Scheduler::timer_handler(int sig) {
     if (setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
         throw new Error("timer handler: setitimer failed");
         // TODO exit safely with memory freeing
+        sigprocmask_unblock();
     }
 
     /* finally, perform the longjmp to new running thread */
-    // TODO unblock sigs
+    sigprocmask_unblock();
     threads[running_thread]->thread_siglongjmp(1);
 }
 
@@ -339,7 +371,7 @@ void Scheduler::handle_sleeping_threads() {
                 break;
             case BLOCKED:
                 blocked_threads->insert(*it);
-                return;
+                break;
             case RUNNING:
                 throw new Error("sleeping handle: can't wake up running "
                                 "thread"); // TODO shouldn't happen
@@ -355,4 +387,18 @@ int Scheduler::get_quanta_counter(int tid) {
     }
 
     return threads[tid]->get_quanta_counter();
+}
+
+void Scheduler::sigprocmask_block() {
+    if (sigprocmask(SIG_BLOCK, &signals, nullptr) < 0) {
+        std::cerr << SYSTEM_ERROR << "sigprocmask failed" << std::endl;
+        // TODO exit and dealloc memory
+    }
+}
+
+void Scheduler::sigprocmask_unblock() {
+    if (sigprocmask(SIG_UNBLOCK, &signals, nullptr) < 0) {
+        std::cerr << SYSTEM_ERROR << "sigprocmask failed" << std::endl;
+        // TODO exit and dealloc memory
+    }
 }
