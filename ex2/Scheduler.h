@@ -12,19 +12,13 @@
 
 #include <deque>
 #include <set>
+#include <iostream>
 
 #define FAILURE (-1)
 #define SUCCESS 0
 #define MAIN_TID 0
 #define PREEMPTED 100
 
-#define SYSTEM_ERROR "system error: "
-#define THREAD_LIBRARY_ERROR "thread library error: "
-
-#define INVALID_ARG "invalid argument, "
-#define MEMORY_ALLOC_FAILED "memory allocation failed, "
-
-#define SPAWN_FUNC "spawn"
 
 
 class Scheduler {
@@ -40,8 +34,7 @@ private:
     int get_free_tid();
     bool is_tid_valid(int tid);
     int running_thread;
-    void timer_handler(int sig);
-    bool schedule();
+    void schedule();
     std::deque<int> *ready_threads;
     void remove_from_ready(int tid);
     std::set<int> *blocked_threads;
@@ -69,6 +62,8 @@ public:
      */
     Scheduler(int quantum_usecs);
     ~Scheduler();
+
+    static void timer_handler(int sig);
 
     /**
      * @brief Creates a new thread, whose entry point is the function entry_point with the signature

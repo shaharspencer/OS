@@ -5,8 +5,15 @@
 
 #include <setjmp.h>
 #include <signal.h>
+#include <string>
 
 #define AWAKE 0
+
+const std::string SYSTEM_ERROR = "system error: ";
+const std::string THREAD_LIBRARY_ERROR = "thread library error: ";
+
+const std::string INVALID_ARG = "invalid argument, ";
+const std::string MEMORY_ALLOC_FAILED = "memory allocation failed, ";
 
 typedef enum State {
     RUNNING,

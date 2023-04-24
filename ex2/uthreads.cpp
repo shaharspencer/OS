@@ -9,29 +9,44 @@
 
 static Scheduler *scheduler; // TODO validate static use
 
-void handle_error(std::string error_type, std::string description, std::string context) {
-    std::cerr << error_type << ": " << description << ", " << context << std::endl;
-    if (error_type == SYSTEM_ERROR) {
-        delete scheduler;
+int handle_error(std::string error_msg) {
+    std::cerr << error_msg;
+    if (error_msg.substr(0, SYSTEM_ERROR.size()) == SYSTEM_ERROR){
+        if (scheduler){
+            delete scheduler;
+        }
         exit(SYSTEM_ERROR_EXIT);
     }
+
+    return FAILURE;
+
 }
 
 int uthread_init(int quantum_usecs) {
     if (quantum_usecs <= 0) {
-        // TODO handle error
+        return handle_error(THREAD_LIBRARY_ERROR + "negative seconds in init\n");
         return FAILURE;
     }
+
     scheduler = new Scheduler(quantum_usecs);
+
     if (!scheduler) {
-        // TODO handle malloc error
-        return FAILURE;
+        return handle_error(SYSTEM_ERROR+ "could not create scheduler\n");
     }
     return SUCCESS;
 }
 
 int uthread_spawn(thread_entry_point entry_point) {
-    return scheduler->spawn(entry_point);
+    try{
+        return scheduler->spawn(entry_point);
+    }
+    catch (const std::invalid_argument& e){
+        return handle_error(e.what());
+    }
+    catch (const std::system_error& e){
+        return handle_error(e.what());
+    }
+
 }
 
 int uthread_terminate(int tid) {
@@ -39,19 +54,52 @@ int uthread_terminate(int tid) {
         delete scheduler;
         exit(MAIN_TID);
     }
-    return scheduler->terminate(tid);
+    try {
+        return scheduler->terminate(tid);
+    }
+    catch (const std::invalid_argument& e){
+        return handle_error(e.what());
+    }
+    catch (const std::system_error& e){
+        return handle_error(e.what());
+    }
 }
 
 int uthread_block(int tid) {
-    return scheduler->block(tid);
+    try {
+        return scheduler->block(tid);
+    }
+    catch (const std::invalid_argument& e){
+        return handle_error(e.what());
+    }
+    catch (const std::system_error& e){
+        return handle_error(e.what());
+    }
 }
 
 int uthread_resume(int tid) {
-    return scheduler->resume(tid);
+    try {
+        return scheduler->resume(tid);
+    }
+    catch (const std::invalid_argument& e){
+        return handle_error(e.what());
+    }
+    catch (const std::system_error& e){
+        return handle_error(e.what());
+    }
 }
 
 int uthread_sleep(int num_quantums) {
-    return scheduler->sleep(num_quantums);
+
+    try{
+        return scheduler->sleep(num_quantums);
+    }
+    catch (const std::invalid_argument& e){
+        return handle_error(e.what());
+    }
+    catch (const std::system_error& e){
+        return handle_error(e.what());
+    }
 }
 
 int uthread_get_tid() {
