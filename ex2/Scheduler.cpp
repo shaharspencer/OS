@@ -354,7 +354,7 @@ void Scheduler::schedule() {
 
     /* install timer_handler as action for SIGVTALRM */
     struct sigaction sa;
-    sa.sa_handler = &Scheduler::timer_handler;
+    sa.sa_handler = &Scheduler::static_timer_handler;
     if (sigaction(SIGVTALRM, &sa, nullptr) < 0) {
         throw std::system_error(errno, std::generic_category(),
                                 SYSTEM_ERROR + " schedule - sigaction error\n");
@@ -372,7 +372,7 @@ void Scheduler::schedule() {
 
     /* force context switch to occur */
     try {
-        timer_handler(SIGVTALRM);
+        static_timer_handler(SIGVTALRM);
     }
     catch (const std::invalid_argument& e){
         throw e;
@@ -395,26 +395,26 @@ void Scheduler::schedule() {
 
 void Scheduler::timer_handler(int sig) {
     /* block signals with sigprocmask */
-    instance->sigprocmask_block();
+    sigprocmask_block();
 
     /* assert signal is correct, if not fail and return */
     if (sig != SIGVTALRM) {
-        instance->sigprocmask_unblock();
+        sigprocmask_unblock();
         throw std::system_error(errno, std::generic_category(),
                                 SYSTEM_ERROR + "timer handler: wrong signal\n");
     }
 
     /* if running thread isn't terminated, push to ready_threads and setjmp */
-    if (instance->running_thread != PREEMPTED) {
-        instance->ready_threads->push_back(instance->running_thread);
-        instance->threads[instance->running_thread]->set_state(READY);
+    if (running_thread != PREEMPTED) {
+        ready_threads->push_back(running_thread);
+        threads[running_thread]->set_state(READY);
 
         /* case where sigsetjmp succeeded with return value 0 */
-        if (instance->threads[instance->running_thread]->thread_sigsetsetjmp() != 0) {
-            instance->sigprocmask_unblock();
-            if (instance->threads[instance->running_thread]->thread_sigsetsetjmp() != 0) {
+        if (threads[running_thread]->thread_sigsetsetjmp() != 0) {
+            sigprocmask_unblock();
+            if (threads[running_thread]->thread_sigsetsetjmp() != 0) {
                 try {
-                    instance->sigprocmask_unblock();
+                    sigprocmask_unblock();
                 }
                 catch (const std::invalid_argument &e) {
                     throw e;
@@ -427,11 +427,11 @@ void Scheduler::timer_handler(int sig) {
         }
 
         /* if no threads are awaiting execution, do nothing */
-        if (instance->ready_threads->empty()) {
-            instance->sigprocmask_unblock();
-            if (instance->ready_threads->empty()) {
+        if (ready_threads->empty()) {
+            sigprocmask_unblock();
+            if (ready_threads->empty()) {
                 try {
-                    instance->sigprocmask_unblock();
+                    sigprocmask_unblock();
                 }
                 catch (const std::invalid_argument &e) {
                     throw e;
@@ -443,17 +443,17 @@ void Scheduler::timer_handler(int sig) {
             }
 
             /* set next ready thread as new running thread */
-            instance->running_thread = instance->ready_threads->front();
-            instance->threads[instance->running_thread]->set_state(RUNNING);
-            instance->ready_threads->pop_front();
+            running_thread = ready_threads->front();
+            threads[running_thread]->set_state(RUNNING);
+            ready_threads->pop_front();
 
             /* increment both thread's and total quanta counters */
-            instance->threads[instance->running_thread]->increment_quanta_counter();
-            instance->increment_total_quanta_counter();
+            threads[running_thread]->increment_quanta_counter();
+            increment_total_quanta_counter();
 
             /* manage the sleeping threads */
             try {
-                instance->handle_sleeping_threads();
+                handle_sleeping_threads();
             }
             catch (const std::invalid_argument &e) {
                 throw e;
@@ -464,14 +464,14 @@ void Scheduler::timer_handler(int sig) {
 
 
             /* set timer and assert success */
-            if (setitimer(ITIMER_VIRTUAL, &instance->timer, nullptr)) {
+            if (setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
                 throw new std::system_error(errno, std::generic_category(),
                                             SYSTEM_ERROR + "timer handler: setitimer failed\n");
             }
 
             /* finally, perform the longjmp to new running thread */
             try {
-                instance->sigprocmask_unblock();
+                sigprocmask_unblock();
             }
             catch (const std::invalid_argument &e) {
                 throw e;
@@ -480,7 +480,7 @@ void Scheduler::timer_handler(int sig) {
                 throw e;
             }
 
-            instance->threads[instance->running_thread]->thread_siglongjmp(1);
+            threads[running_thread]->thread_siglongjmp(1);
         }
     }
 }

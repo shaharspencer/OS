@@ -37,6 +37,7 @@ private:
     bool is_tid_valid(int tid);
     int running_thread;
     void schedule();
+    void timer_handler(int sig);
     std::deque<int> *ready_threads;
     void remove_from_ready(int tid);
     std::set<int> *blocked_threads;
@@ -65,7 +66,7 @@ public:
     Scheduler(int quantum_usecs);
     ~Scheduler();
 
-    static void timer_handler(int sig);
+    static void static_timer_handler(int sig) { instance->timer_handler(sig); }
 
     /**
      * @brief Creates a new thread, whose entry point is the function entry_point with the signature
