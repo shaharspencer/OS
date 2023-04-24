@@ -3,6 +3,8 @@
 // TODO define an exit func that deallocates all memory and exits with
 //  specific code, later add call to exit whenever needed
 
+Scheduler* Scheduler::instance = nullptr;
+
 Scheduler::Scheduler(int quantum_usecs) :
         quantum((suseconds_t) quantum_usecs),
         timer({0, 0, 0, 0}), total_quanta_counter(0) {

@@ -19,8 +19,6 @@
 #define MAIN_TID 0
 #define PREEMPTED 100
 
-
-
 class Scheduler {
 private:
     static Scheduler* instance;
