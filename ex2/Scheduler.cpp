@@ -303,8 +303,7 @@ void Scheduler::timer_handler(int sig) {
 
     /* set timer and assert success */
     if (setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
-        throw new Error("timer handler: setitimer failed");
-        // TODO exit safely with memory freeing
+        throw new std::system_error(SYSTEM_ERROR + "timer handler: setitimer failed\n")
     }
 
     /* finally, perform the longjmp to new running thread */
@@ -340,8 +339,8 @@ void Scheduler::handle_sleeping_threads() {
                 blocked_threads->insert(*it);
                 return;
             case RUNNING:
-                throw new Error("sleeping handle: can't wake up running "
-                                "thread"); // TODO shouldn't happen
+                throw std::exception("sleeping handle: can't wake up running "
+                                     "thread")
         }
     }
 }
@@ -349,8 +348,8 @@ void Scheduler::handle_sleeping_threads() {
 int Scheduler::get_quanta_counter(int tid) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
-        throw new Error("terminate: tid is invalid or thread is nullptr");
-        return FAILURE;
+        throw std::invalid_argument(THREAD_LIBRARY_ERROR + INVALID_ARG +
+        "terminate: tid is invalid or thread is nullptr\n" )
     }
 
     return threads[tid]->get_quanta_counter();

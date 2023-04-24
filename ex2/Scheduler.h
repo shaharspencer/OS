@@ -7,6 +7,7 @@
 #include <setjmp.h>
 #include <sys/time.h>
 #include <stdexcept>
+#include <system_error>
 
 #include <deque>
 #include <set>
