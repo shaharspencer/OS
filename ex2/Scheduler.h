@@ -23,6 +23,8 @@
 
 class Scheduler {
 private:
+    static Scheduler* instance;
+
     /* Timer components */
     const suseconds_t quantum;
     struct itimerval timer;
@@ -43,8 +45,8 @@ private:
 
     /* Signals component */
     sigset_t signals;
-    void sigprocmask_block(); // TODO implement
-    void sigprocmask_unblock(); // TODO implement
+    void sigprocmask_block();
+    void sigprocmask_unblock();
 
     /* A method to exit the Scheduler's run and dealloc all data */
     void error_handler(std::string error_type, std::string description, std::string context);

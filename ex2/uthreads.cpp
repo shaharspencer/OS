@@ -7,7 +7,7 @@
 
 #define SYSTEM_ERROR_EXIT 1
 
-static Scheduler *scheduler; // TODO validate static use
+Scheduler *scheduler;
 
 int handle_error(std::string error_msg) {
     std::cerr << error_msg;
