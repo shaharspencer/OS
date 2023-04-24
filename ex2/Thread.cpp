@@ -45,7 +45,7 @@ address_t translate_address(address_t addr) {
 
 // TODO handle main thread scenario
 Thread::Thread(int tid, thread_entry_point entry_point) :
-tid(tid), state(READY), quanta_counter(0), sleeping_time(AWAKE) {
+tid(tid), state(READY), sleeping_time(AWAKE), quanta_counter(0) {
     /* Allocates pseudo-stack for the new thread */
     stack = new char[STACK_SIZE];
     if(!stack) {
@@ -77,8 +77,8 @@ void Thread::set_state(State s) {
     state = s;
 }
 
-sigjmp_buf &Thread::get_env() {
-    return &env;
+sigjmp_buf Thread::get_env() {
+    return env;
 }
 
 int Thread::get_quanta_counter() {

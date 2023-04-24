@@ -39,7 +39,6 @@ public:
 
     void decrement_sleeping_time() { sleeping_time--; }
 
-    sigjmp_buf &get_env();
 
     int get_quanta_counter();
 
