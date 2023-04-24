@@ -43,8 +43,8 @@ private:
 
     /* Signals component */
     sigset_t signals;
-    int sigprocmask_block(); // TODO implement
-    int sigprocmask_unblock(); // TODO implement
+    void sigprocmask_block(); // TODO implement
+    void sigprocmask_unblock(); // TODO implement
 
     /* A method to exit the Scheduler's run and dealloc all data */
     void error_handler(std::string error_type, std::string description, std::string context);
