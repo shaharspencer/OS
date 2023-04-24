@@ -88,7 +88,15 @@ void Scheduler::remove_from_ready(int tid) {
 }
 
 int Scheduler::spawn(thread_entry_point entry_point) {
-    sigprocmask_block();
+    try {
+        sigprocmask_block();
+    }
+    catch (const std::invalid_argument& e){
+        throw e;
+    }
+    catch (const std::system_error& e){
+        throw e;
+    }
 
     /* get free tid if available, if not fail and return */
     int tid = get_free_tid();
@@ -113,7 +121,15 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     threads[tid] = thread;
     /* since spawned thread is READY, push its tid to ready queue */
     ready_threads->push_back(tid);
-    sigprocmask_unblock();
+    try {
+        sigprocmask_unblock();
+    }
+    catch (const std::invalid_argument& e){
+        throw e;
+    }
+    catch (const std::system_error& e){
+        throw e;
+    }
     return tid;
 }
 
@@ -125,7 +141,7 @@ int Scheduler::terminate(int tid) {
         throw std::invalid_argument(THREAD_LIBRARY_ERROR +
         "tried to terminate invalid tid\n");
         // TODO throw library error
-        sigprocmask_unblock();
+//        sigprocmask_unblock();
         return FAILURE;
     }
 
@@ -136,7 +152,16 @@ int Scheduler::terminate(int tid) {
     /* terminate depending on thread's state */
     if (threads[tid]->get_sleeping_time() != AWAKE) {
         sleeping_threads->erase(tid);
-        sigprocmask_unblock();
+        try {
+            sigprocmask_unblock();
+        }
+        catch (const std::invalid_argument& e){
+            throw e;
+        }
+        catch (const std::system_error& e){
+            throw e;
+        }
+
         return SUCCESS;
     }
     switch (threads[tid]->get_state()) {
@@ -169,12 +194,29 @@ int Scheduler::terminate(int tid) {
             }
 
     }
-    sigprocmask_unblock();
+    try{
+        sigprocmask_unblock();
+    }
+    catch (const std::invalid_argument& e){
+        throw e;
+    }
+    catch (const std::system_error& e){
+        throw e;
+    }
     return SUCCESS;
 }
 
 int Scheduler::block(int tid) {
-    sigprocmask_block();
+    try {
+        sigprocmask_block();
+    }
+    catch (const std::invalid_argument& e){
+        throw e;
+    }
+    catch (const std::system_error& e){
+        throw e;
+    }
+
 
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
@@ -224,7 +266,15 @@ int Scheduler::block(int tid) {
 }
 
 int Scheduler::resume(int tid) {
-    sigprocmask_block();
+    try{
+        sigprocmask_block();
+    }
+    catch (const std::invalid_argument& e){
+        throw e;
+    }
+    catch (const std::system_error& e){
+        throw e;
+    }
 
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
@@ -252,7 +302,15 @@ int Scheduler::resume(int tid) {
                 break;
         }
     }
-    sigprocmask_unblock();
+    try {
+        sigprocmask_unblock();
+    }
+    catch (const std::invalid_argument& e){
+        throw e;
+    }
+    catch (const std::system_error& e){
+        throw e;
+    }
     return SUCCESS;
 }
 
@@ -296,7 +354,8 @@ void Scheduler::schedule() {
     struct sigaction sa;
     sa.sa_handler = Scheduler::timer_handler;
     if (sigaction(SIGVTALRM, &sa, nullptr) < 0) {
-        throw std::system_error(errno, std::generic_category(), SYSTEM_ERROR + " schedule - sigaction error\n");
+        throw std::system_error(errno, std::generic_category(),
+                                SYSTEM_ERROR + " schedule - sigaction error\n");
     }
 
     /* set the timer for given quantum */
@@ -305,7 +364,8 @@ void Scheduler::schedule() {
     timer.it_interval.tv_sec = quantum / 1000000;
     timer.it_interval.tv_usec = quantum % 1000000;
     if (setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
-        throw std::system_error(errno, std::generic_category(), SYSTEM_ERROR + "timer init: setitimer failed\n");
+        throw std::system_error(errno, std::generic_category(),
+                                SYSTEM_ERROR + "timer init: setitimer failed\n");
     }
 
     /* force context switch to occur */
@@ -349,14 +409,30 @@ static void Scheduler::timer_handler(int sig) {
 
         /* case where sigsetjmp succeeded with return value 0 */
         if (threads[running_thread]->thread_sigsetsetjmp() != 0) {
-            sigprocmask_unblock();
+            try{
+                sigprocmask_unblock();
+            }
+            catch (const std::invalid_argument& e){
+                throw e;
+            }
+            catch (const std::system_error& e){
+                throw e;
+            }
             return;
         }
     }
 
     /* if no threads are awaiting execution, do nothing */
     if (ready_threads->empty()) {
-        sigprocmask_unblock();
+        try {
+            sigprocmask_unblock();
+        }
+        catch (const std::invalid_argument& e){
+            throw e;
+        }
+        catch (const std::system_error& e){
+            throw e;
+        }
         return;
     }
 
@@ -373,12 +449,7 @@ static void Scheduler::timer_handler(int sig) {
     try{
         handle_sleeping_threads();
     }
-    catch (const std::invalid_argument& e){
-        throw e;
-    }
-    catch (const std::system_error& e){
-        throw e;
-    }
+
 
     /* set timer and assert success */
     if (setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
@@ -387,7 +458,16 @@ static void Scheduler::timer_handler(int sig) {
     }
 
     /* finally, perform the longjmp to new running thread */
-    sigprocmask_unblock();
+    try{
+        sigprocmask_unblock();
+    }
+    catch (const std::invalid_argument& e){
+        throw e;
+    }
+    catch (const std::system_error& e){
+        throw e;
+    }
+
     threads[running_thread]->thread_siglongjmp(1);
 }
 
@@ -437,14 +517,14 @@ int Scheduler::get_quanta_counter(int tid) {
 
 void Scheduler::sigprocmask_block() {
     if (sigprocmask(SIG_BLOCK, &signals, nullptr) < 0) {
-        std::cerr << SYSTEM_ERROR << "sigprocmask failed" << std::endl;
-        // TODO exit and dealloc memory
+        throw std::system_error(errno, std::generic_category(),
+                                SYSTEM_ERROR + "sigprocmask block failed\n");
     }
 }
 
 void Scheduler::sigprocmask_unblock() {
     if (sigprocmask(SIG_UNBLOCK, &signals, nullptr) < 0) {
-        std::cerr << SYSTEM_ERROR << "sigprocmask  failed" << std::endl;
-        // TODO exit and dealloc memory
+        throw std::system_error(errno, std::generic_category(),
+                                SYSTEM_ERROR + " sigprocmask unblock failed\n");
     }
 }
