@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <setjmp.h>
 #include <sys/time.h>
+#include <stdexcept>
 
 #include <deque>
 #include <set>
@@ -15,10 +16,13 @@
 #define MAIN_TID 0
 #define PREEMPTED 100
 
-#define SYSTEM_ERROR "system error"
-#define THREAD_LIBRARY_ERROR "thread library error"
+#define SYSTEM_ERROR "system error: "
+#define THREAD_LIBRARY_ERROR "thread library error: "
 
-#define MEMORY_ALLOC_FAILED "memory allocation failed"
+#define INVALID_ARG "invalid argument, "
+#define MEMORY_ALLOC_FAILED "memory allocation failed, "
+
+#define SPAWN_FUNC "spawn"
 
 
 class Scheduler {
@@ -48,7 +52,7 @@ private:
     int sigprocmask_unblock(); // TODO implement
 
     /* A method to exit the Scheduler's run and dealloc all data */
-    void exit_scheduler(int code); // TODO implement
+    void error_handler(std::string error_type, std::string description, std::string context);
 
 public:
     /**

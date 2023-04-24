@@ -1,7 +1,5 @@
 #include "Scheduler.h"
 
-#include <iostream>
-
 // TODO define an exit func that deallocates all memory and exits with
 //  specific code, later add call to exit whenever needed
 
@@ -34,13 +32,16 @@ Scheduler::Scheduler(int quantum_usecs) :
 }
 
 Scheduler::~Scheduler() {
-    /* deletes all created threads */
+    /* deletes all created threads and structures */
     for (int i = 0; i < MAX_THREAD_NUM; i++) {
         if (threads[i]) {
             delete threads[i];
             threads[i] = nullptr;
         }
     }
+    delete ready_threads;
+    delete blocked_threads;
+    delete sleeping_threads;
 }
 
 int Scheduler::get_free_tid() {
@@ -59,8 +60,7 @@ bool Scheduler::is_tid_valid(int tid) {
 void Scheduler::remove_from_ready(int tid) {
     /* assert tid validity */
     if (!is_tid_valid(tid)) {
-        throw new Error("ready remove: tid invalid");
-        return;
+        throw std::invalid_argument(THREAD_LIBRARY_ERROR + INVALID_ARG + SPAWN_FUNC)
     }
 
     /* advance along ready_threads, if current thread has same tid remove it */
@@ -77,7 +77,8 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     /* get free tid if available, if not fail and return */
     int tid = get_free_tid();
     if (tid == FAILURE) {
-        throw new Error("spawn: no free tid"); // TODO remove when done
+        throw std::invalid_argument(THREAD_LIBRARY_ERROR);
+        new std::exception() Error("spawn: no free tid"); // TODO remove when done
         return FAILURE;
     }
 
