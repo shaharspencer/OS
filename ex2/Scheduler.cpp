@@ -60,7 +60,8 @@ bool Scheduler::is_tid_valid(int tid) {
 void Scheduler::remove_from_ready(int tid) {
     /* assert tid validity */
     if (!is_tid_valid(tid)) {
-        throw std::invalid_argument(THREAD_LIBRARY_ERROR + INVALID_ARG + SPAWN_FUNC)
+        throw new Error("ready remove: tid invalid");
+        return;
     }
 
     /* advance along ready_threads, if current thread has same tid remove it */
