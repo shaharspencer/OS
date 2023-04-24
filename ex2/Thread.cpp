@@ -46,18 +46,21 @@ address_t translate_address(address_t addr) {
 // TODO handle main thread scenario
 Thread::Thread(int tid, thread_entry_point entry_point) :
 tid(tid), state(READY), sleeping_time(AWAKE), quanta_counter(0) {
-    /* Allocates pseudo-stack for the new thread */
-    stack = new char[STACK_SIZE];
-    if(!stack) {
-        std::cerr << "malloc error" << std::endl; // TODO use error macro
+
+    if (sigsetjmp(env, 1) == 0 && tid != 0) {
+        /* Allocates pseudo-stack for the new thread */
+        stack = new char[STACK_SIZE];
+        if(!stack) {
+            std::cerr << "malloc error" << std::endl; // TODO use error macro
+        }
+
+        /* Initializes env, same as in demo_jmp.c */
+        address_t sp = (address_t) stack + STACK_SIZE - sizeof(address_t);
+        address_t pc = (address_t) entry_point;
+        (env->__jmpbuf)[JB_SP] = translate_address(sp);
+        (env->__jmpbuf)[JB_PC] = translate_address(pc);
     }
 
-    /* Initializes env, same as in demo_jmp.c */
-    address_t sp = (address_t) stack + STACK_SIZE - sizeof(address_t);
-    address_t pc = (address_t) entry_point;
-    sigsetjmp(env, 1);
-    (env->__jmpbuf)[JB_SP] = translate_address(sp);
-    (env->__jmpbuf)[JB_PC] = translate_address(pc);
     sigemptyset(&env->__saved_mask);
 }
 

@@ -3,7 +3,7 @@
 // TODO define an exit func that deallocates all memory and exits with
 //  specific code, later add call to exit whenever needed
 
-Scheduler* Scheduler::instance = nullptr;
+Scheduler *Scheduler::instance = nullptr;
 
 Scheduler::Scheduler(int quantum_usecs) :
         quantum((suseconds_t) quantum_usecs),
@@ -17,16 +17,24 @@ Scheduler::Scheduler(int quantum_usecs) :
     sleeping_threads = new std::set<int>();
 
     /* create main thread and schedule it immediately */
-    spawn(MAIN_TID);
+    try {
+        spawn(MAIN_TID);
+    }
+    catch (const std::invalid_argument &e) {
+        throw e;
+    }
+    catch (const std::system_error &e) {
+        throw e;
+    }
     running_thread = MAIN_TID;
     threads[MAIN_TID]->set_state(RUNNING);
     ready_threads->pop_front();
 
     /* define signals to block/unblock during scheduling actions */
-    if (sigemptyset(&signals)){
+    if (sigemptyset(&signals)) {
         throw std::system_error(errno, std::generic_category(), SYSTEM_ERROR + "sigemptyset failed\n");
     }
-    if (sigaddset(&signals, SIGVTALRM)){
+    if (sigaddset(&signals, SIGVTALRM)) {
         throw std::system_error(errno, std::generic_category(), SYSTEM_ERROR + "sigaddset failed\n");
     }
 
@@ -37,13 +45,13 @@ Scheduler::Scheduler(int quantum_usecs) :
     }
 
     /* immediately schedule main thread */
-    try{
+    try {
         schedule();
     }
-    catch (const std::invalid_argument& e){
+    catch (const std::invalid_argument &e) {
         throw e;
     }
-    catch (const std::system_error& e){
+    catch (const std::system_error &e) {
         throw e;
     }
 }
@@ -95,10 +103,10 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     try {
         sigprocmask_block();
     }
-    catch (const std::invalid_argument& e){
+    catch (const std::invalid_argument &e) {
         throw e;
     }
-    catch (const std::system_error& e){
+    catch (const std::system_error &e) {
         throw e;
     }
 
@@ -109,7 +117,7 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     }
 
     /* make sure entry_point != nullptr */
-    if (entry_point == nullptr) {
+    if (tid != MAIN_TID && entry_point == nullptr) {
         throw std::invalid_argument(THREAD_LIBRARY_ERROR + "spawn: entry_point == nullptr\nf");
     }
 
@@ -128,10 +136,10 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     try {
         sigprocmask_unblock();
     }
-    catch (const std::invalid_argument& e){
+    catch (const std::invalid_argument &e) {
         throw e;
     }
-    catch (const std::system_error& e){
+    catch (const std::system_error &e) {
         throw e;
     }
     return tid;
@@ -143,7 +151,7 @@ int Scheduler::terminate(int tid) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
         throw std::invalid_argument(THREAD_LIBRARY_ERROR +
-        "tried to terminate invalid tid\n");
+                                    "tried to terminate invalid tid\n");
         // TODO throw library error
 //        sigprocmask_unblock();
         return FAILURE;
@@ -159,10 +167,10 @@ int Scheduler::terminate(int tid) {
         try {
             sigprocmask_unblock();
         }
-        catch (const std::invalid_argument& e){
+        catch (const std::invalid_argument &e) {
             throw e;
         }
-        catch (const std::system_error& e){
+        catch (const std::system_error &e) {
             throw e;
         }
 
@@ -170,14 +178,14 @@ int Scheduler::terminate(int tid) {
     }
     switch (threads[tid]->get_state()) {
         case READY:
-            try{
+            try {
                 remove_from_ready(tid);
             }
 
-            catch (const std::invalid_argument& e){
+            catch (const std::invalid_argument &e) {
                 throw e;
             }
-            catch (const std::system_error& e){
+            catch (const std::system_error &e) {
                 throw e;
             }
 
@@ -187,24 +195,24 @@ int Scheduler::terminate(int tid) {
             break;
         case RUNNING:
             running_thread = PREEMPTED;
-            try{
+            try {
                 schedule();
             }
-            catch (const std::invalid_argument& e){
+            catch (const std::invalid_argument &e) {
                 throw e;
             }
-            catch (const std::system_error& e){
+            catch (const std::system_error &e) {
                 throw e;
             }
 
     }
-    try{
+    try {
         sigprocmask_unblock();
     }
-    catch (const std::invalid_argument& e){
+    catch (const std::invalid_argument &e) {
         throw e;
     }
-    catch (const std::system_error& e){
+    catch (const std::system_error &e) {
         throw e;
     }
     return SUCCESS;
@@ -214,10 +222,10 @@ int Scheduler::block(int tid) {
     try {
         sigprocmask_block();
     }
-    catch (const std::invalid_argument& e){
+    catch (const std::invalid_argument &e) {
         throw e;
     }
-    catch (const std::system_error& e){
+    catch (const std::system_error &e) {
         throw e;
     }
 
@@ -225,7 +233,7 @@ int Scheduler::block(int tid) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
         throw new std::invalid_argument(THREAD_LIBRARY_ERROR +
-        "terminate: tid is invalid or thread is nullptr\n");
+                                        "terminate: tid is invalid or thread is nullptr\n");
     }
 
     /* assert main thread isn't being blocked */
@@ -255,10 +263,10 @@ int Scheduler::block(int tid) {
                 try {
                     schedule();
                 }
-                catch (const std::invalid_argument& e){
+                catch (const std::invalid_argument &e) {
                     throw e;
                 }
-                catch (const std::system_error& e){
+                catch (const std::system_error &e) {
                     throw e;
                 }
 
@@ -270,13 +278,13 @@ int Scheduler::block(int tid) {
 }
 
 int Scheduler::resume(int tid) {
-    try{
+    try {
         sigprocmask_block();
     }
-    catch (const std::invalid_argument& e){
+    catch (const std::invalid_argument &e) {
         throw e;
     }
-    catch (const std::system_error& e){
+    catch (const std::system_error &e) {
         throw e;
     }
 
@@ -309,10 +317,10 @@ int Scheduler::resume(int tid) {
     try {
         sigprocmask_unblock();
     }
-    catch (const std::invalid_argument& e){
+    catch (const std::invalid_argument &e) {
         throw e;
     }
-    catch (const std::system_error& e){
+    catch (const std::system_error &e) {
         throw e;
     }
     return SUCCESS;
@@ -341,10 +349,10 @@ int Scheduler::sleep(int num_quanta) {
     try {
         schedule();
     }
-    catch (const std::invalid_argument& e){
+    catch (const std::invalid_argument &e) {
         throw e;
     }
-    catch (const std::system_error& e){
+    catch (const std::system_error &e) {
         throw e;
     }
     sigprocmask_unblock();
@@ -376,10 +384,10 @@ void Scheduler::schedule() {
     try {
         static_timer_handler(SIGVTALRM);
     }
-    catch (const std::invalid_argument& e){
+    catch (const std::invalid_argument &e) {
         throw e;
     }
-    catch (const std::system_error& e){
+    catch (const std::system_error &e) {
         throw e;
     }
 }
@@ -494,7 +502,7 @@ void Scheduler::handle_sleeping_threads() {
     auto wake_up = new std::set<int>();
 
     /* for every sleeping thread, decrement its quanta remainder by 1 */
-    for (int sleeping_tid : *sleeping_threads) {
+    for (int sleeping_tid: *sleeping_threads) {
         threads[sleeping_tid]->decrement_sleeping_time();
         /* if time remaining to sleep is 0, add to wake up */
         if (threads[sleeping_tid]->get_sleeping_time() == AWAKE) {
@@ -525,7 +533,7 @@ int Scheduler::get_quanta_counter(int tid) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
         throw std::invalid_argument(THREAD_LIBRARY_ERROR + INVALID_ARG +
-        "terminate: tid is invalid or thread is nullptr\n" );
+                                    "terminate: tid is invalid or thread is nullptr\n");
     }
 
     return threads[tid]->get_quanta_counter();
