@@ -6,7 +6,7 @@
 //  specific code, later add call to exit whenever needed
 
 Scheduler::Scheduler(int quantum_usecs) :
-        quantum((suseconds_t) quantum_usecs), timer({0}), total_quanta_counter(0) {
+        quantum((suseconds_t) quantum_usecs), timer({0, 0, 0, 0}), total_quanta_counter(0) {
 
     /* create data structures */
     ready_threads = new std::deque<int>();
