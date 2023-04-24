@@ -2,8 +2,6 @@
 
 #include <iostream>
 
-using namespace std;
-
 // TODO define an exit func that deallocates all memory and exits with
 //  specific code, later add call to exit whenever needed
 
@@ -11,9 +9,9 @@ Scheduler::Scheduler(int quantum_usecs) :
         quantum((suseconds_t) quantum_usecs), timer({0}), total_quanta_counter(0) {
 
     /* create data structures */
-    ready_threads = new deque<int>();
-    blocked_threads = new set<int>();
-    sleeping_threads = new set<int>();
+    ready_threads = new std::deque<int>();
+    blocked_threads = new std::set<int>();
+    sleeping_threads = new std::set<int>();
 
     /* create main thread and schedule it immediately */
     spawn(MAIN_TID);

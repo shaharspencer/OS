@@ -77,10 +77,6 @@ void Thread::set_state(State s) {
     state = s;
 }
 
-sigjmp_buf Thread::get_env() {
-    return env;
-}
-
 int Thread::get_quanta_counter() {
     return quanta_counter;
 }

@@ -39,7 +39,6 @@ public:
 
     void decrement_sleeping_time() { sleeping_time--; }
 
-
     int get_quanta_counter();
 
     void increment_quanta_counter();

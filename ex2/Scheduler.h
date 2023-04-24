@@ -36,10 +36,10 @@ private:
     int running_thread;
     void timer_handler(int sig);
     bool schedule();
-    deque<int> *ready_threads;
+    std::deque<int> *ready_threads;
     void remove_from_ready(int tid);
-    set<int> *blocked_threads;
-    set<int> *sleeping_threads;
+    std::set<int> *blocked_threads;
+    std::set<int> *sleeping_threads;
     void handle_sleeping_threads();
 
     /* Signals component */
