@@ -7,8 +7,8 @@ using namespace std;
 // TODO define an exit func that deallocates all memory and exits with
 //  specific code, later add call to exit whenever needed
 
-Scheduler::Scheduler (int quantum_usecs) :
-quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
+Scheduler::Scheduler(int quantum_usecs) :
+        quantum((suseconds_t) quantum_usecs), timer({0}), total_quanta_counter(0) {
 
     /* create data structures */
     ready_threads = new deque<int>();
@@ -37,13 +37,16 @@ quantum((suseconds_t)quantum_usecs), timer({0}), total_quanta_counter(0) {
 
 Scheduler::~Scheduler() {
     /* deletes all created threads */
-    for(int i = 0; i < MAX_THREAD_NUM; i++) {
-        delete threads[i];
+    for (int i = 0; i < MAX_THREAD_NUM; i++) {
+        if (threads[i]) {
+            delete threads[i];
+            threads[i] = nullptr;
+        }
     }
 }
 
 int Scheduler::get_free_tid() {
-    for(int i = 0; i < MAX_THREAD_NUM; i++) {
+    for (int i = 0; i < MAX_THREAD_NUM; i++) {
         if (!threads[i]) {
             return i;
         }
@@ -57,14 +60,14 @@ bool Scheduler::is_tid_valid(int tid) {
 
 void Scheduler::remove_from_ready(int tid) {
     /* assert tid validity */
-    if(!is_tid_valid(tid)) {
+    if (!is_tid_valid(tid)) {
         throw new Error("ready remove: tid invalid");
         return;
     }
 
     /* advance along ready_threads, if current thread has same tid remove it */
-    for(auto it = ready_threads->begin(); it != ready_threads->end(); it++) {
-        if(*it == tid) {
+    for (auto it = ready_threads->begin(); it != ready_threads->end(); it++) {
+        if (*it == tid) {
             ready_threads->erase(it);
             return;
         }
@@ -75,13 +78,13 @@ void Scheduler::remove_from_ready(int tid) {
 int Scheduler::spawn(thread_entry_point entry_point) {
     /* get free tid if available, if not fail and return */
     int tid = get_free_tid();
-    if(tid == FAILURE) {
+    if (tid == FAILURE) {
         throw new Error("spawn: no free tid"); // TODO remove when done
         return FAILURE;
     }
 
     /* make sure entry_point != nullptr */
-    if(entry_point == nullptr) {
+    if (entry_point == nullptr) {
         throw new Error("spawn: entry_point == nullptr"); // TODO remove later?
         return FAILURE;
     }
@@ -89,7 +92,7 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     /* create a new Thread Control Block (TCB).
      * if creation failed, fail and return */
     auto thread = new Thread(tid, entry_point);
-    if(!thread) {
+    if (!thread) {
         throw new Error("spawn: thread construction failed"); // TODO remove when done
         return FAILURE;
     }
@@ -103,25 +106,22 @@ int Scheduler::spawn(thread_entry_point entry_point) {
 
 int Scheduler::terminate(int tid) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
-    if(!is_tid_valid(tid)) {
+    if (!is_tid_valid(tid)) {
         return FAILURE;
     }
 
-    /* if main thread is terminated, end run */
-    if(tid == MAIN_TID) {
-        // TODO exit with dealloc
-    }
+    /* if main thread is terminated, ends run from outer scope */
 
     /* dealloc and nullify threads[tid] */
     delete threads[tid];
     threads[tid] = nullptr;
 
     /* terminate depending on thread's state */
-    if(threads[tid]->get_sleeping_time() != AWAKE) {
+    if (threads[tid]->get_sleeping_time() != AWAKE) {
         sleeping_threads->erase(tid);
         return SUCCESS;
     }
-    switch(threads[tid]->get_state()) {
+    switch (threads[tid]->get_state()) {
         case READY:
             remove_from_ready(tid);
             break;
@@ -137,13 +137,13 @@ int Scheduler::terminate(int tid) {
 
 int Scheduler::block(int tid) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
-    if(!is_tid_valid(tid)) {
+    if (!is_tid_valid(tid)) {
         throw new Error("terminate: tid is invalid or thread is nullptr");
         return FAILURE;
     }
 
     /* assert main thread isn't being blocked */
-    if(tid == MAIN_TID) {
+    if (tid == MAIN_TID) {
         throw new Error("terminate: can't block main thread");
         return FAILURE;
     }
@@ -154,8 +154,8 @@ int Scheduler::block(int tid) {
     threads[tid]->set_state(BLOCKED);
 
     /* change data structure depending on thread's state */
-    if(threads[tid]->get_sleeping_time() == AWAKE) {
-        switch(curr_state) {
+    if (threads[tid]->get_sleeping_time() == AWAKE) {
+        switch (curr_state) {
             case READY:
                 remove_from_ready(tid);
                 blocked_threads->insert(tid);
@@ -175,7 +175,7 @@ int Scheduler::block(int tid) {
 
 int Scheduler::resume(int tid) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
-    if(!is_tid_valid(tid)) {
+    if (!is_tid_valid(tid)) {
         throw new Error("terminate: tid is invalid or thread is nullptr");
         return FAILURE;
     }
@@ -186,8 +186,8 @@ int Scheduler::resume(int tid) {
     threads[tid]->set_state(READY);
 
     /* change data structure depending on thread's state */
-    if(threads[tid]->get_sleeping_time() == AWAKE) {
-        switch(threads[tid]->get_state()) {
+    if (threads[tid]->get_sleeping_time() == AWAKE) {
+        switch (threads[tid]->get_state()) {
             case RUNNING:
             case READY:
                 /* nothing needs to be done */
@@ -204,13 +204,13 @@ int Scheduler::resume(int tid) {
 
 int Scheduler::sleep(int num_quanta) {
     /* assert num_quanta is valid, if not fail and return */
-    if(num_quanta < 0) {
+    if (num_quanta < 0) {
         throw new Error("sleep: negative time");
         return FAILURE;
     }
 
     /* assert running thread isn't main thread, if so fail and return */
-    if(running_thread == MAIN_TID) {
+    if (running_thread == MAIN_TID) {
         throw new Error("sleep: can't put main thread to sleep");
         return FAILURE;
     }
@@ -230,7 +230,7 @@ void Scheduler::schedule() {
     /* install timer_handler as action for SIGVTALRM */
     struct sigaction sa = {0};
     sa.sa_handler = &timer_handler;
-    if(sigaction(SIGVTALRM, &sa, nullptr) < 0) {
+    if (sigaction(SIGVTALRM, &sa, nullptr) < 0) {
         // TODO handle error
         printf("sigaction error.");
         return;
@@ -241,7 +241,7 @@ void Scheduler::schedule() {
     timer.it_value.tv_usec = quantum % 1e6;
     timer.it_interval.tv_sec = quantum / 1e6;
     timer.it_interval.tv_usec = quantum % 1e6;
-    if(setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
+    if (setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
         std::cerr << SYSTEM_ERROR << "setitimer failed" << std::endl;
         throw new Error("timer init: setitimer failed.");
         // TODO exit
@@ -262,31 +262,31 @@ void Scheduler::schedule() {
  * then move the next thread in the queue of READY threads to the RUNNING state.
  * @param sig signal to handle
  */
-void Scheduler::timer_handler(int sig){
+void Scheduler::timer_handler(int sig) {
     /* block signals with sigprocmask */
     // TODO block
 
     /* assert signal is correct, if not fail and return */
-    if(sig != SIGVTALRM) {
+    if (sig != SIGVTALRM) {
         // TODO unblock
         throw new Error("timer handler: wrong signal"); // TODO remove later
         return;
     }
 
     /* if running thread isn't terminated, push to ready_threads and setjmp */
-    if(running_thread != PREEMPTED) {
+    if (running_thread != PREEMPTED) {
         ready_threads->push_back(running_thread);
         threads[running_thread]->set_state(READY);
 
         /* case where sigsetjmp succeeded with return value 0 */
-        if(threads[running_thread]->thread_sigsetsetjmp() != 0) {
+        if (threads[running_thread]->thread_sigsetsetjmp() != 0) {
             // TODO unblock sigs
             return;
         }
     }
 
     /* if no threads are awaiting execution, do nothing */
-    if(ready_threads->empty()) {
+    if (ready_threads->empty()) {
         return;
     }
 
@@ -303,7 +303,7 @@ void Scheduler::timer_handler(int sig){
     handle_sleeping_threads();
 
     /* set timer and assert success */
-    if(setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
+    if (setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
         throw new Error("timer handler: setitimer failed");
         // TODO exit safely with memory freeing
     }
@@ -320,20 +320,20 @@ void Scheduler::handle_sleeping_threads() {
     auto wake_up = new set<int>();  // TODO seems like a problem ):
 
     /* for every sleeping thread, decrement its quanta remainder by 1 */
-    for(int* it : sleeping_threads) {
+    for (int *it: sleeping_threads) {
         threads[*it]->decrement_sleeping_time();
         /* if time remaining to sleep is 0, add to wake up */
-        if(threads[*it]->get_sleeping_time() == AWAKE) {
+        if (threads[*it]->get_sleeping_time() == AWAKE) {
             wake_up->insert(*it);
         }
     }
 
     /* wake up threads that finished sleeping */
-    for(int* it : wake_up) {
+    for (int *it: wake_up) {
         /* remove from sleeping_threads */
         sleeping_threads->erase(*it);
         /* wake up to correct state */
-        switch(threads[*it]->get_state()) {
+        switch (threads[*it]->get_state()) {
             case READY:
                 ready_threads->push_back(*it);
                 break;
@@ -349,7 +349,7 @@ void Scheduler::handle_sleeping_threads() {
 
 int Scheduler::get_quanta_counter(int tid) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
-    if(!is_tid_valid(tid)) {
+    if (!is_tid_valid(tid)) {
         throw new Error("terminate: tid is invalid or thread is nullptr");
         return FAILURE;
     }

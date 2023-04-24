@@ -3,7 +3,19 @@
 #include "uthreads.h"
 #include "Scheduler.h"
 
-static Scheduler* scheduler; // TODO validate static use
+#include <iostream>
+
+#define SYSTEM_ERROR_EXIT 1
+
+static Scheduler *scheduler; // TODO validate static use
+
+void handle_error(std::string error_type, std::string description, std::string context) {
+    std::cerr << error_type << ": " << description << ", " << context << std::endl;
+    if (error_type == SYSTEM_ERROR) {
+        delete scheduler;
+        exit(SYSTEM_ERROR_EXIT);
+    }
+}
 
 int uthread_init(int quantum_usecs) {
     if (quantum_usecs <= 0) {
@@ -23,6 +35,10 @@ int uthread_spawn(thread_entry_point entry_point) {
 }
 
 int uthread_terminate(int tid) {
+    if (tid == MAIN_TID) {
+        delete scheduler;
+        exit(MAIN_TID);
+    }
     return scheduler->terminate(tid);
 }
 

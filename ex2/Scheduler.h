@@ -6,7 +6,6 @@
 #include <signal.h>
 #include <setjmp.h>
 #include <sys/time.h>
-#include <error.h>
 
 #include <deque>
 #include <set>
@@ -16,14 +15,19 @@
 #define MAIN_TID 0
 #define PREEMPTED 100
 
-#define SYSTEM_ERROR "system error: "
-#define THREAD_LIBRARY_ERROR "thread library error: "
+#define SYSTEM_ERROR "system error"
+#define THREAD_LIBRARY_ERROR "thread library error"
+
+#define MEMORY_ALLOC_FAILED "memory allocation failed"
+#define
+
+std::cerr << SYSTEM_ERROR << MEMORY_ALLOC_FAILED << std::endl;
 
 class Scheduler {
 private:
     /* Timer components */
     const suseconds_t quantum;
-    struct itimer timer;
+    struct itimerval timer;
     int total_quanta_counter;
     void increment_total_quanta_counter() { total_quanta_counter++; }
 
