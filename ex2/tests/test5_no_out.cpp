@@ -5,7 +5,7 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include "../uthreads.h"
+#include "../ex_2_tests_updated/uthreads.h"
 
 #define GRN "\e[32m"
 #define RED "\x1B[31m"
@@ -47,7 +47,10 @@ int main()
     fflush(stdout);
 
 	int q[2] = {10, 20};
-	uthread_init(8000);
+	if (uthread_init(20) == -1)
+	{
+		error();
+	}
     if (uthread_spawn(thread1) != 1)
         error();
     if (uthread_spawn(thread2) != 2)
@@ -64,6 +67,7 @@ int main()
     uthread_terminate(5);
     if (uthread_spawn(thread1) != 5)
         error();
+
 
     wait_next_quantum();
     wait_next_quantum();

@@ -14,7 +14,7 @@
 #include <deque>
 #include <list>
 #include <assert.h>
-#include "../uthreads.h"
+#include "../ex_2_tests_updated/uthreads.h"
 //#include "libuthread.a"
 #include <iostream>
 

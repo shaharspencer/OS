@@ -28,7 +28,7 @@
 #include <cstdio>
 #include <cstring>
 #include <time.h>
-#include "../uthreads.h"
+#include "../ex_2_tests_updated/uthreads.h"
 
 #define GRN "\e[32m"
 #define RED "\x1B[31m"
@@ -223,7 +223,10 @@ int main()
     }
 
 	int q[2] = {10, 20};
-	uthread_init(20);
+	if (uthread_init(20) == -1)
+	{
+		return 0;
+	}
 
     int t1 = uthread_spawn(thread1);
     int t2 = uthread_spawn(thread2);

@@ -14,7 +14,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
-#include "../uthreads.h"
+#include "../ex_2_tests_updated/uthreads.h"
 
 
 #define GRN "\e[32m"

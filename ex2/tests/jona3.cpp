@@ -5,7 +5,7 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include "../uthreads.h"
+#include "../ex_2_tests_updated/uthreads.h"
 
 #define GRN "\e[32m"
 #define RED "\x1B[31m"
