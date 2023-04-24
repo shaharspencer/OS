@@ -396,7 +396,7 @@ void Scheduler::sigprocmask_block() {
 
 void Scheduler::sigprocmask_unblock() {
     if (sigprocmask(SIG_UNBLOCK, &signals, nullptr) < 0) {
-        std::cerr << SYSTEM_ERROR << "sigprocmask failed" << std::endl;
+        std::cerr << SYSTEM_ERROR << "sigprocmask  failed" << std::endl;
         // TODO exit and dealloc memory
     }
 }
