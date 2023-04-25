@@ -417,7 +417,7 @@ void Scheduler::timer_handler(int sig) {
     /* block signals with sigprocmask */
     sigprocmask_block(); // TODO try catch
 
-    std::cout << "Finished running for 1 quantum on thread " << std::to_string(running_thread) << std::endl;
+//    std::cout << "Finished running for 1 quantum on thread " << std::to_string(running_thread) << std::endl;
 
     /* assert signal is correct, if not fail and return */
     if (sig != SIGVTALRM) {
@@ -428,8 +428,8 @@ void Scheduler::timer_handler(int sig) {
 
     /* if running thread isn't terminated, push to ready_threads and setjmp */
     if (running_thread != PREEMPTED) {
-        std::cout << "Thread runtime: " << std::to_string(get_quanta_counter(running_thread)) <<
-                  " Total: " << std::to_string(total_quanta_counter) << std::endl;
+//        std::cout << "Thread runtime: " << std::to_string(get_quanta_counter(running_thread)) <<
+//                  " Total: " << std::to_string(total_quanta_counter) << std::endl;
         ready_threads->push_back(running_thread);
         threads[running_thread]->set_state(READY);
 
@@ -492,7 +492,7 @@ void Scheduler::timer_handler(int sig) {
     /* finally, perform the longjmp to new running thread */
     try {
         sigprocmask_unblock();
-        std::cout << "Timer set and ready to jump to thread " << std::to_string(running_thread) << std::endl;
+//        std::cout << "Timer set and ready to jump to thread " << std::to_string(running_thread) << std::endl;
         threads[running_thread]->thread_siglongjmp(0);
     }
     catch (const std::invalid_argument &e) {

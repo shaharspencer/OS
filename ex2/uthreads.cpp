@@ -118,5 +118,6 @@ int uthread_get_total_quantums() {
 }
 
 int uthread_get_quantums(int tid) {
+    // TODO catch invalid tid error
     return scheduler->get_quanta_counter(tid);
 }
