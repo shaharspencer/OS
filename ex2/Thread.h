@@ -50,7 +50,7 @@ public:
 
     void increment_quanta_counter();
 
-    int thread_sigsetsetjmp();
+    int thread_sigsetjmp();
 
     void thread_siglongjmp(int val);
 };

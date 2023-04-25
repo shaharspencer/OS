@@ -61,7 +61,7 @@ public:
      * The input to the function is the length of a quantum in micro-seconds.
      * It is an error to call this function with non-positive quantum_usecs.
      */
-    Scheduler(int quantum_usecs);
+    explicit Scheduler(int quantum_usecs);
     ~Scheduler();
 
     static void static_timer_handler(int sig) { instance->timer_handler(sig); }

@@ -88,11 +88,11 @@ void Thread::increment_quanta_counter() {
     quanta_counter++;
 }
 
-int Thread::thread_sigsetsetjmp() {
-    int x = sigsetjmp(env, 1);
-    if (x){
-        throw std::system_error(errno, std::generic_category(),SYSTEM_ERROR + "sigsetjmp failed in thread\n");
-    }
+int Thread::thread_sigsetjmp() {
+    int x = sigsetjmp(env, 1); // TODO make sure this is done right
+//    if (x) {
+//        throw std::system_error(errno, std::generic_category(),SYSTEM_ERROR + "sigsetjmp failed in thread " +  std::to_string(tid) + "\n");
+//    }
     return x;
 }
 
