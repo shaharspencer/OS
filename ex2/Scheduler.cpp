@@ -1,7 +1,5 @@
 #include "Scheduler.h"
 
-// TODO define an exit func that deallocates all memory and exits with
-//  specific code, later add call to exit whenever needed
 
 Scheduler *Scheduler::instance = nullptr;
 
@@ -123,7 +121,17 @@ int Scheduler::spawn(thread_entry_point entry_point) {
 
     /* create a new Thread Control Block (TCB).
      * if creation failed, fail and return */
-    auto thread = new Thread(tid, entry_point);
+    auto thread;
+    try{
+        thread = new Thread(tid, entry_point);
+    }
+    catch (const std::invalid_argument &e) {
+        throw e;
+    }
+    catch (const std::system_error &e) {
+        throw e;
+    }
+
     if (!thread) {
         throw std::system_error(errno, std::generic_category(),
                                 SYSTEM_ERROR + "spawn - thread construction failed\n");
@@ -146,13 +154,22 @@ int Scheduler::spawn(thread_entry_point entry_point) {
 }
 
 int Scheduler::terminate(int tid) {
-    sigprocmask_block(); // TODO try catch
+    try{
+        sigprocmask_block();
+    }
+    catch (const std::invalid_argument &e) {
+        throw e;
+    }
+    catch (const std::system_error &e) {
+        throw e;
+    }
+
 
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
         throw std::invalid_argument(THREAD_LIBRARY_ERROR +
                                     "tried to terminate invalid tid\n");
-        // TODO throw library error
+        // TODO IS THIS CORRECT?
 //        sigprocmask_unblock();
         return FAILURE;
     }
@@ -273,7 +290,18 @@ int Scheduler::block(int tid) {
                 break;
         }
     }
-    sigprocmask_unblock(); // TODO try catch
+    try {
+        sigprocmask_unblock();
+    }
+    catch (const std::invalid_argument &e) {
+        throw e;
+    }
+    catch (const std::system_error &e) {
+        throw e;
+    }
+
+
+
     return SUCCESS;
 }
 
@@ -337,7 +365,15 @@ int Scheduler::resume(int tid) {
 }
 
 int Scheduler::sleep(int num_quanta) {
-    sigprocmask_block();
+    try {
+        sigprocmask_block();
+    }
+    catch (const std::invalid_argument &e) {
+        throw e;
+    }
+    catch (const std::system_error &e) {
+        throw e;
+    }
 
     /* assert num_quanta is valid, if not fail and return */
     if (num_quanta <= 0) {
@@ -365,12 +401,28 @@ int Scheduler::sleep(int num_quanta) {
     catch (const std::system_error &e) {
         throw e;
     }
-    sigprocmask_unblock();
+    try {
+        sigprocmask_unblock();
+    }
+    catch (const std::invalid_argument &e) {
+        throw e;
+    }
+    catch (const std::system_error &e) {
+        throw e;
+    }
     return SUCCESS;
 }
 
 void Scheduler::schedule() {
-    sigprocmask_block(); // TODO try catch
+    try{
+        sigprocmask_block();
+    }
+    catch (const std::invalid_argument &e) {
+        throw e;
+    }
+    catch (const std::system_error &e) {
+        throw e;
+    }
 
     /* install timer_handler as action for SIGVTALRM */
     struct sigaction sa;
@@ -415,13 +467,30 @@ void Scheduler::schedule() {
 
 void Scheduler::timer_handler(int sig) {
     /* block signals with sigprocmask */
-    sigprocmask_block(); // TODO try catch
+    try{
+        sigprocmask_block();
+    }
+    catch (const std::invalid_argument &e) {
+        throw e;
+    }
+    catch (const std::system_error &e) {
+        throw e;
+    }
+
 
 //    std::cout << "Finished running for 1 quantum on thread " << std::to_string(running_thread) << std::endl;
 
     /* assert signal is correct, if not fail and return */
     if (sig != SIGVTALRM) {
-        sigprocmask_unblock();
+        try {
+            sigprocmask_unblock();
+        }
+        catch (const std::invalid_argument &e) {
+            throw e;
+        }
+        catch (const std::system_error &e) {
+            throw e;
+        }
         throw std::system_error(errno, std::generic_category(),
                                 SYSTEM_ERROR + "timer handler: wrong signal\n");
     }
@@ -542,7 +611,7 @@ int Scheduler::get_quanta_counter(int tid) {
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
         throw std::invalid_argument(THREAD_LIBRARY_ERROR + INVALID_ARG +
-                                    "terminate: tid is invalid or thread is nullptr\n");
+                                    "get_quanta_counter - tid is invalid or thread is nullptr\n");
     }
 
     return threads[tid]->get_quanta_counter();

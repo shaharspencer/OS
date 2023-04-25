@@ -25,7 +25,6 @@ int handle_error(std::string error_msg) {
 int uthread_init(int quantum_usecs) {
     if (quantum_usecs <= 0) {
         return handle_error(THREAD_LIBRARY_ERROR + "negative seconds in init\n");
-        return FAILURE;
     }
 
     try {
@@ -118,6 +117,13 @@ int uthread_get_total_quantums() {
 }
 
 int uthread_get_quantums(int tid) {
-    // TODO catch invalid tid error
-    return scheduler->get_quanta_counter(tid);
+    try {
+        return scheduler->get_quanta_counter(tid);
+    }
+    catch (const std::invalid_argument &e) {
+        return handle_error(e.what());
+    }
+    catch (const std::system_error &e) {
+        return handle_error(e.what());
+    }
 }
