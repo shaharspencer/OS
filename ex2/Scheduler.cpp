@@ -277,7 +277,7 @@ int Scheduler::block(int tid) {
 
                 try {
                     /* thread's PC increments so that on resume it won't re-block itself  */
-                    threads[tid]->thread_sigsetjmp(); // TODO see if any special case happens
+                    threads[tid]->thread_sigsetjmp();
                     schedule();
                 }
                 catch (const std::invalid_argument &e) {
