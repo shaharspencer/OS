@@ -33,6 +33,7 @@ private:
     Thread* threads[MAX_THREAD_NUM];
     int get_free_tid();
     bool is_tid_valid(int tid);
+    int previous_thread;
     int running_thread;
     void schedule();
     void timer_handler(int sig);
