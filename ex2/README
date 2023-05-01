@@ -148,8 +148,8 @@ triggers te operating system to handle our input.
 Upon hitting the enter key, another interrupt from the keyboard is mediated by the operating system to make the shell
 process to read the command and generate a SIGKILL signal to the lyx process with the pid 227462.
 The operating system then delivers the signal to the target lyx process, which can either handle or ignore it.
-If the lyx process does not handle the signal, the default signal handler is executed, which
-terminates the execution of the process and releases its resources, as indeed happened.
+If the lyx process does not handle the signal, the default signal handler is executed, which terminates the execution
+of the process and releases its resources, as indeed happened.
 Once the signal has been handled or ignored by the target process, a signal acknowledgement is sent back to the
 operating system.
 
