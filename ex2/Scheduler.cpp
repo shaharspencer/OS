@@ -146,6 +146,7 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     ready_threads->push_back(tid);
     try {
         sigprocmask_unblock();
+        return tid;
     }
     catch (const std::invalid_argument &e) {
         throw e;
@@ -153,7 +154,6 @@ int Scheduler::spawn(thread_entry_point entry_point) {
     catch (const std::system_error &e) {
         throw e;
     }
-    return tid;
 }
 
 int Scheduler::terminate(int tid) {
@@ -457,7 +457,6 @@ void Scheduler::schedule() {
     try {
         sigprocmask_unblock();
         static_timer_handler(SIGVTALRM);
-        sigprocmask_unblock();
     }
     catch (const std::invalid_argument &e) {
         throw e;
@@ -569,7 +568,6 @@ void Scheduler::timer_handler(int sig) {
         throw e;
     }
 
-    sigprocmask_unblock();
     /* set timer and assert success */
     if (setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
         throw std::system_error(errno, std::generic_category(),
