@@ -172,9 +172,16 @@ int Scheduler::terminate(int tid) {
     if (!is_tid_valid(tid)) {
         throw std::invalid_argument(THREAD_LIBRARY_ERROR +
                                     "tried to terminate invalid tid\n");
-        // TODO IS THIS CORRECT?
-//        sigprocmask_unblock();
-        return FAILURE;
+        try {
+            sigprocmask_unblock();
+            return FAILURE;
+        }
+        catch (const std::invalid_argument &e) {
+            throw e;
+        }
+        catch (const std::system_error &e) {
+            throw e;
+        }
     }
 
     /* terminate depending on thread's state */
@@ -227,6 +234,7 @@ int Scheduler::terminate(int tid) {
 
     try {
         sigprocmask_unblock();
+        return SUCCESS;
     }
     catch (const std::invalid_argument &e) {
         throw e;
@@ -234,7 +242,6 @@ int Scheduler::terminate(int tid) {
     catch (const std::system_error &e) {
         throw e;
     }
-    return SUCCESS;
 }
 
 int Scheduler::block(int tid) {
@@ -247,6 +254,7 @@ int Scheduler::block(int tid) {
     catch (const std::system_error &e) {
         throw e;
     }
+
     /* assert tid is valid and threads[tid] exists, if not fail and return */
     if (!is_tid_valid(tid)) {
         throw std::invalid_argument(THREAD_LIBRARY_ERROR + "terminate: tid is invalid or thread is nullptr\n");
@@ -256,8 +264,6 @@ int Scheduler::block(int tid) {
     if (tid == MAIN_TID) {
         throw std::invalid_argument(THREAD_LIBRARY_ERROR + "terminate - can't block main thread");
     }
-
-
 
     /* save thread's current state for later structure handling */
     State curr_state = threads[tid]->get_state();
@@ -299,6 +305,7 @@ int Scheduler::block(int tid) {
     }
     try {
         sigprocmask_unblock();
+        return SUCCESS;
     }
     catch (const std::invalid_argument &e) {
         throw e;
@@ -306,9 +313,6 @@ int Scheduler::block(int tid) {
     catch (const std::system_error &e) {
         throw e;
     }
-
-
-    return SUCCESS;
 }
 
 int Scheduler::resume(int tid) {
@@ -410,6 +414,7 @@ int Scheduler::sleep(int num_quanta) {
     }
     try {
         sigprocmask_unblock();
+        return SUCCESS;
     }
     catch (const std::invalid_argument &e) {
         throw e;
@@ -417,7 +422,6 @@ int Scheduler::sleep(int num_quanta) {
     catch (const std::system_error &e) {
         throw e;
     }
-    return SUCCESS;
 }
 
 void Scheduler::schedule() {
@@ -451,6 +455,7 @@ void Scheduler::schedule() {
 
     /* force context switch to occur */
     try {
+        sigprocmask_unblock();
         static_timer_handler(SIGVTALRM);
         sigprocmask_unblock();
     }
@@ -530,6 +535,7 @@ void Scheduler::timer_handler(int sig) {
     if (ready_threads->empty()) {
         try {
             sigprocmask_unblock();
+            return;
         }
         catch (const std::invalid_argument &e) {
             throw e;
@@ -537,27 +543,20 @@ void Scheduler::timer_handler(int sig) {
         catch (const std::system_error &e) {
             throw e;
         }
-        return;
     }
 
+    /* increment both thread's and total quanta counters */
+    if (running_thread == PREEMPTED) {
+        threads[previous_thread]->increment_quanta_counter();
+    } else {
+        threads[running_thread]->increment_quanta_counter();
+    }
+    increment_total_quanta_counter();
 
     /* set next ready thread as new running thread */
     running_thread = ready_threads->front();
     threads[running_thread]->set_state(RUNNING);
     ready_threads->pop_front();
-
-    /* increment both thread's and total quanta counters */
-    if (running_thread == PREEMPTED) {
-        threads[previous_thread]->increment_quanta_counter();
-    }
-    else {
-        threads[running_thread]->increment_quanta_counter();
-    }
-
-    increment_total_quanta_counter();
-
-
-
 
     /* manage the sleeping threads */
     try {
