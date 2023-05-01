@@ -17,9 +17,7 @@ int handle_error(std::string error_msg) {
         }
         exit(SYSTEM_ERROR_EXIT);
     }
-
     return FAILURE;
-
 }
 
 int uthread_init(int quantum_usecs) {

@@ -157,8 +157,6 @@ public:
      * @return On success, return the number of quantums of the thread with ID tid. On failure, return -1.
      */
     int get_quanta_counter(int tid);
-
-    int previous_thread;
 };
 
 

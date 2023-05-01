@@ -51,7 +51,6 @@ tid(tid), state(READY), sleeping_time(AWAKE), quanta_counter(0) {
         stack = new char[STACK_SIZE];
         if(!stack) {
             throw std::system_error(errno, std::generic_category(), SYSTEM_ERROR + "stack allocation failed\n");
-
         }
 
         /* Initializes env, same as in demo_jmp.c */
@@ -89,17 +88,10 @@ void Thread::increment_quanta_counter() {
 }
 
 int Thread::thread_sigsetjmp() {
-    int x = sigsetjmp(env, 1); // TODO make sure this is done right
-//    if (x) {
-//        throw std::system_error(errno, std::generic_category(),SYSTEM_ERROR + "sigsetjmp failed in thread " +  std::to_string(tid) + "\n");
-//    }
-    return x;
+    int val = sigsetjmp(env, 1);
+    return val;
 }
 
 void Thread::thread_siglongjmp(int val) {
-    std::cout<<"jumping in thread "<< this->tid<<std::endl;
     siglongjmp(env, val);
-    //        throw std::system_error(errno, std::generic_category(),SYSTEM_ERROR + "siglongjmp failed in thread\n");
-    //
-    std::cout<<"done jumping in thread "<< this->tid<<std::endl;
 }
