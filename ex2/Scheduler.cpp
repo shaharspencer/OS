@@ -14,6 +14,14 @@ Scheduler::Scheduler(int quantum_usecs) :
     blocked_threads = new std::set<int>();
     sleeping_threads = new std::set<int>();
 
+    /* define signals to block/unblock during scheduling actions */
+    if (sigemptyset(&signals)) {
+        throw std::system_error(errno, std::generic_category(), SYSTEM_ERROR + "sigemptyset failed\n");
+    }
+    if (sigaddset(&signals, SIGVTALRM)) {
+        throw std::system_error(errno, std::generic_category(), SYSTEM_ERROR + "sigaddset failed\n");
+    }
+
     /* create main thread and schedule it immediately */
     try {
         spawn(MAIN_TID);
@@ -30,19 +38,12 @@ Scheduler::Scheduler(int quantum_usecs) :
     threads[MAIN_TID]->set_state(RUNNING);
     ready_threads->pop_front();
 
-    /* define signals to block/unblock during scheduling actions */
-    if (sigemptyset(&signals)) {
-        throw std::system_error(errno, std::generic_category(), SYSTEM_ERROR + "sigemptyset failed\n");
-    }
-    if (sigaddset(&signals, SIGVTALRM)) {
-        throw std::system_error(errno, std::generic_category(), SYSTEM_ERROR + "sigaddset failed\n");
-    }
-
     /* TODO figure out what is actually happening here */
     if (sigprocmask(SIG_SETMASK, &signals, nullptr) < 0) {
         throw std::system_error(errno, std::generic_category(),
                                 SYSTEM_ERROR + "sigprocmask failed\n");
     }
+
 
     /* immediately schedule main thread */
     try {
@@ -123,8 +124,8 @@ int Scheduler::spawn(thread_entry_point entry_point) {
 
     /* create a new Thread Control Block (TCB).
      * if creation failed, fail and return */
-    auto thread = (Thread*) nullptr;
-    try{
+    auto thread = (Thread *) nullptr;
+    try {
         thread = new Thread(tid, entry_point);
     }
     catch (const std::invalid_argument &e) {
@@ -156,7 +157,7 @@ int Scheduler::spawn(thread_entry_point entry_point) {
 }
 
 int Scheduler::terminate(int tid) {
-    try{
+    try {
         sigprocmask_block();
     }
     catch (const std::invalid_argument &e) {
@@ -286,8 +287,11 @@ int Scheduler::block(int tid) {
 
                 try {
                     /* thread's PC increments so that on resume it won't re-block itself  */
-                    threads[tid]->thread_sigsetjmp();
-                    schedule();
+//                    threads[tid]->thread_sigsetjmp();
+//                    schedule();
+
+                    timer_handler(SIGVTALRM);
+
                 }
                 catch (const std::invalid_argument &e) {
                     throw e;
@@ -421,7 +425,7 @@ int Scheduler::sleep(int num_quanta) {
 }
 
 void Scheduler::schedule() {
-    try{
+    try {
         sigprocmask_block();
     }
     catch (const std::invalid_argument &e) {
@@ -440,9 +444,9 @@ void Scheduler::schedule() {
     }
 
     /* set the timer for given quantum */
-    timer.it_value.tv_sec = quantum / 1000000;
+    timer.it_value.tv_sec = 0; //quantum / 1000000;
     timer.it_value.tv_usec = quantum % 1000000;
-    timer.it_interval.tv_sec = quantum / 1000000;
+    timer.it_interval.tv_sec = 0; // quantum / 1000000;
     timer.it_interval.tv_usec = quantum % 1000000;
     if (setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
         throw std::system_error(errno, std::generic_category(),
@@ -453,6 +457,7 @@ void Scheduler::schedule() {
     try {
         sigprocmask_unblock();
         static_timer_handler(SIGVTALRM);
+        sigprocmask_unblock();
     }
     catch (const std::invalid_argument &e) {
         throw e;
@@ -474,8 +479,9 @@ void Scheduler::schedule() {
  */
 
 void Scheduler::timer_handler(int sig) {
+    std::cout << "running thread at begginingof timer_handler: " << running_thread << std::endl;
     /* block signals with sigprocmask */
-    try{
+    try {
         sigprocmask_block();
     }
     catch (const std::invalid_argument &e) {
@@ -485,7 +491,7 @@ void Scheduler::timer_handler(int sig) {
         throw e;
     }
 
-    std::cout << "Finished running for 1 quantum on thread " << std::to_string(running_thread) << std::endl;
+//    std::cout << "Finished running for 1 quantum on thread " << std::to_string(running_thread) << std::endl;
 
     /* assert signal is correct, if not fail and return */
     if (sig != SIGVTALRM) {
@@ -505,8 +511,8 @@ void Scheduler::timer_handler(int sig) {
 
     /* if running thread isn't terminated, push to ready_threads and setjmp */
     if (running_thread != PREEMPTED) {
-        std::cout << "Thread runtime: " << std::to_string(get_quanta_counter(running_thread)) <<
-                  " Total: " << std::to_string(total_quanta_counter) << std::endl;
+//        std::cout << "Thread runtime: " << std::to_string(get_quanta_counter(running_thread)) <<
+//                  " Total: " << std::to_string(total_quanta_counter) << std::endl;
         ready_threads->push_back(running_thread);
         threads[running_thread]->set_state(READY);
 
@@ -563,18 +569,18 @@ void Scheduler::timer_handler(int sig) {
         throw e;
     }
 
-
+    sigprocmask_unblock();
     /* set timer and assert success */
     if (setitimer(ITIMER_VIRTUAL, &timer, nullptr)) {
         throw std::system_error(errno, std::generic_category(),
-                                    SYSTEM_ERROR + "timer handler: setitimer failed\n");
+                                SYSTEM_ERROR + "timer handler: setitimer failed\n");
     }
 
     /* finally, perform the longjmp to new running thread */
     try {
-        sigprocmask_unblock();
-        std::cout << "Timer set and ready to jump to thread " << std::to_string(running_thread) << std::endl;
-        threads[running_thread]->thread_siglongjmp(0);
+
+//        std::cout << "Timer set and ready to jump to thread " << std::to_string(running_thread) << std::endl;
+        threads[running_thread]->thread_siglongjmp(1);
     }
     catch (const std::invalid_argument &e) {
         throw e;
@@ -582,6 +588,8 @@ void Scheduler::timer_handler(int sig) {
     catch (const std::system_error &e) {
         throw e;
     }
+
+    std::cout << "running thread at end of timer_handler: " << running_thread << std::endl;
 
 }
 

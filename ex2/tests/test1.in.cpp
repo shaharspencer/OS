@@ -20,6 +20,7 @@
 //#include "libuthread.a"
 #include <iostream>
 
+
 using namespace std;
 
 
@@ -91,9 +92,12 @@ int main(void)
 
     while(1)
     {
-        //int a = uthread_get_quantums(uthread_get_tid());
-        //cout<<"quantums of thread number " << uthread_get_tid()<<" is " <<a<<std::endl;
-        if (i == uthread_get_quantums(uthread_get_tid()))
+        sleep(2);
+        int a = uthread_get_quantums(uthread_get_tid());
+        cout<<"quantums of thread number " << uthread_get_tid()<<" is " <<a<<std::endl;
+
+        std::cout << "i = " << i << ", j = " << j << std::endl;
+        if (1)
         {
             cout << "m" << "  q:  " << i << endl;
             if (i == 3 && j == 0)

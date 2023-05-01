@@ -66,6 +66,7 @@ int main()
         error();
 
     wait_next_quantum();
+    printf("HOORAY\n");
     wait_next_quantum();
 
     uthread_terminate(5);

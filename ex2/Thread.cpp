@@ -97,9 +97,9 @@ int Thread::thread_sigsetjmp() {
 }
 
 void Thread::thread_siglongjmp(int val) {
-
+    std::cout<<"jumping in thread "<< this->tid<<std::endl;
     siglongjmp(env, val);
-//        throw std::system_error(errno, std::generic_category(),SYSTEM_ERROR + "siglongjmp failed in thread\n");
-//    }
-
+    //        throw std::system_error(errno, std::generic_category(),SYSTEM_ERROR + "siglongjmp failed in thread\n");
+    //
+    std::cout<<"done jumping in thread "<< this->tid<<std::endl;
 }
