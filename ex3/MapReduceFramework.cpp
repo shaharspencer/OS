@@ -2,20 +2,10 @@
 #include "Barrier/Barrier.h"
 #include <pthread.h>
 #include <atomic>
+#include <set>
 #include <algorithm>
 
 using namespace std;
-
-// todo static casting
-typedef struct JobContext {
-    //threads
-    pthread_t *threads;
-    //state
-    stage_t state;
-    //mutexes TODO
-
-    //
-} JobContext;
 
 // todo add errors
 // todo add percentages, stages etc
@@ -27,20 +17,52 @@ typedef struct ThreadContext {
     /* unique intermediate vector */
     IntermediateVec *intermediateVec;
     /* grant access to mutual atomic counter and barrier */
-    std::atomic<int> *curr_input;
+    std::atomic<int> *atomicCounter;
     Barrier *barrier;
     MapReduceClient &client;
     JobContext *jobContext;
 } ThreadContext;
 
-ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *outputVec,
-                                   std::atomic<int> *atomic_counter, Barrier *barrier,
-                                   MapReduceClient &client);
+// todo static casting
+typedef struct JobContext {
+    pthread_t *threads;
+    ThreadContext *contexts;
+    std::atomic<uint64_t> *atomicCounter;
+    Barrier *barrier;
+//    //state
+//    stage_t state;
+//    //mutexes TODO
+//
+//    //
+} JobContext;
 
-void single_thread_run(void *arg);
+typedef enum AtomicCounterBitsRange {
+    STAGE,
+    PROCESSED_KEYS,
+    KEYS_TO_PROCESS
+} AtomicCounterBitsRange;
+
+typedef struct BitsRange {
+    int start;
+    int length;
+} BitsRange;
+
+void initializeAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicBitType bitType);
+
+void incrementAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicBitType bitType);
+
+void worker(void *arg);
+
+void shuffle(JobContext *tc);
+
+ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *outputVec,
+                                   IntermediateVec *intermediateVec,
+                                   std::atomic<int> *atomic_counter, Barrier *barrier,
+                                   MapReduceClient &client, JobContext *jobContext);
 
 void emit2(K2 *key, V2 *value, void *context) {
-
+    ThreadContext *tc = (ThreadContext *) context;
+    tc->intermediateVec->push_back({key, value});
 }
 
 void emit3(K3 *key, V3 *value, void *context) {
@@ -53,17 +75,20 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
 
     pthread_t threads[multiThreadLevel];
     ThreadContext contexts[multiThreadLevel];
-    std::atomic<int> atomic_counter(0);
+    std::atomic<uint64_t> atomicCounter(0);
     Barrier barrier(multiThreadLevel);
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        contexts[i] = createThreadContext(i, inputVec, outputVec, nullptr, &atomic_counter, &barrier, client);
+        contexts[i] = createThreadContext(i, inputVec, outputVec, nullptr,
+                                          &atomic_counter, &barrier, client);
     }
 
     for (int i = 0; i < multiThreadLevel; i++) {
         pthread_create(threads + i, nullptr, single_thread_run, contexts + i);
     }
 
+    JobContext *jobContext = (JobContext) {&threads, &contexts, &atomicCounter, &barrier};
+    return static_cast<JobHandle> (jobContext);
     // TODO figure out JobHandle
 }
 
@@ -82,18 +107,16 @@ ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *
 /**
  *
  */
-void single_thread_run(void *arg) {
-
+void worker(void *arg) {
     ThreadContext *tc = (ThreadContext *) arg;
 
     /* MAP PHASE */
-
-    // define intermidiary vector for map phase
+    // define intermediate vector for map phase
     tc->intermediateVec = new IntermediateVec(); // TODO memory TODO maybe should happen in emit2
     // check if map phase is done; else, contribute to map phase
     while (*(tc->curr_input) < tc->inputVec.size()) {
         // save old value and increment
-        int old_value = (*(tc->curr_input))++;
+        int old_value = (*(tc->curr_input))++; // TODO make sure this agrees with 64bit implementation
         // do map to old value
         K1 *key = tc->inputVec.at(old_value).first;
         V1 *value = tc->inputVec.at(old_value).second;
@@ -106,9 +129,12 @@ void single_thread_run(void *arg) {
 
     /* SHUFFLE PHASE */
     if (tc->threadID == 0) {
-
+        vector<IntermediateVec> shuffled = shuffle(tc->jobContext); // TODO change name
     }
     tc->barrier->barrier();
+
+    /* REDUCE PHASE */
+
 }
 
 
@@ -122,4 +148,62 @@ void getJobState(JobHandle job, JobState *state) {
 
 void closeJobHandle(JobHandle job) {
 
+}
+
+// TODO make this FABULOUS
+void initializeAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicCounterBitsRange atomicCounterBitsRange) {
+    BitsRange bitsRange;
+    switch (atomicCounterBitsRange) {
+        case STAGE:
+            bitsRange = {62, 2};
+            break;
+        case PROCESSED_KEYS:
+            bitsRange = {31, 31};
+            break;
+        case KEYS_TO_PROCESS:
+            bitsRange = {0, 31};
+            break;
+        default:
+            // TODO error
+            return;
+    }
+    uint64_t mask = ((1ULL << bitsRange.length) - 1) << bitsRange.start;
+    *atomicCounter = *atomicCounter & ~mask;
+    // TODO make this so it can change desired bits to given value
+}
+
+void incrementAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicBitType bitType);
+
+vector<IntermediateVec> shuffle(JobContext *jc) {
+    bool flag = true;
+    vector<IntermediateVec> shuffleOutput;
+    while(true) {
+        std::set<K2>* max_potential_elements = new std::set<K2>();
+
+        for (ThreadContext tc: jc->contexts)
+        {
+            if(!tc.intermediateVec->empty()) // TODO check
+            {
+                K2 elem = tc.intermediateVec->end()->first;
+                max_potential_elements->insert(elem);
+            }
+        }
+
+        if (max_potential_elements->empty()){
+            break;
+        }
+
+        K2 maxElem = *(std::max_element(max_potential_elements));
+
+        IntermediateVec newIntermidiateVector = new IntermediateVec();
+        for (ThreadContext tc: jc->contexts){
+            if((!tc.intermediateVec->empty()) && tc.intermediateVec->end()->first == maxElem) // TODO check
+            {
+                IntermediatePair elem = tc.intermediateVec->pop_back();
+                newIntermidiateVector.push_back(elem)
+            }
+        }
+        shuffleOutput.push_back(newIntermidiateVector);
+    }
+    return shuffleOutput;
 }
