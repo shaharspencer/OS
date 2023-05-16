@@ -7,9 +7,9 @@
 using namespace std;
 
 // todo static casting
-typedef struct JobContext{
+typedef struct JobContext {
     //threads
-    pthread_t* threads;
+    pthread_t *threads;
     //state
     stage_t state;
     //mutexes TODO
@@ -22,32 +22,33 @@ typedef struct JobContext{
 typedef struct ThreadContext {
     int threadID;
     /* grant access to mutual input and output vectors */
-    InputVec* inputVec;
-    OutputVec* outputVec;
+    InputVec *inputVec;
+    OutputVec *outputVec;
     /* unique intermediate vector */
-    IntermediateVec intermediateVec;
-    //atomic int that represents which elemnt of the input vector we should proccess next
-    std::atomic<int>* curr_input;
-    Barrier* barrier;
-    MapReduceClient& client;
-    JobContext* jobContext;
+    IntermediateVec *intermediateVec;
+    /* grant access to mutual atomic counter and barrier */
+    std::atomic<int> *curr_input;
+    Barrier *barrier;
+    MapReduceClient &client;
+    JobContext *jobContext;
 } ThreadContext;
 
 ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *outputVec,
                                    std::atomic<int> *atomic_counter, Barrier *barrier,
                                    MapReduceClient &client);
 
-void single_thread_run(void* tc);
+void single_thread_run(void *arg);
 
-void emit2 (K2* key, V2* value, void* context){
-
-}
-void emit3 (K3* key, V3* value, void* context){
+void emit2(K2 *key, V2 *value, void *context) {
 
 }
 
-JobHandle startMapReduceJob(const MapReduceClient& client,
-                            const InputVec& inputVec, OutputVec& outputVec,
+void emit3(K3 *key, V3 *value, void *context) {
+
+}
+
+JobHandle startMapReduceJob(const MapReduceClient &client,
+                            const InputVec &inputVec, OutputVec &outputVec,
                             int multiThreadLevel) {
 
     pthread_t threads[multiThreadLevel];
@@ -81,44 +82,44 @@ ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *
 /**
  *
  */
-void single_thread_run(void* tc){
+void single_thread_run(void *arg) {
 
-    ThreadContext* threadContext = (ThreadContext*) tc;
+    ThreadContext *tc = (ThreadContext *) arg;
 
     /* MAP PHASE */
 
     // define intermidiary vector for map phase
-    threadContext->intermediateVec = new IntermediateVec(); // TODO memory TODO maybe should happen in emit2
+    tc->intermediateVec = new IntermediateVec(); // TODO memory TODO maybe should happen in emit2
     // check if map phase is done; else, contribute to map phase
-    while (*(threadContext->curr_input) < threadContext->inputVec.size()){
+    while (*(tc->curr_input) < tc->inputVec.size()) {
         // save old value and increment
-        int old_value = (*(threadContext->curr_input))++;
+        int old_value = (*(tc->curr_input))++;
         // do map to old value
-        K1* key = threadContext->inputVec.at(old_value).first;
-        V1* value = threadContext->inputVec.at(old_value).second;
-        threadContext->client.map(key, value, intermediateVec);
+        K1 *key = tc->inputVec.at(old_value).first;
+        V1 *value = tc->inputVec.at(old_value).second;
+        tc->client.map(key, value, tc);
     }
 
     /* SORT PHASE */
-    std::sort(intermediateVec->begin(), intermediateVec->end());
-    threadContext->barrier->barrier();
+    std::sort(tc->intermediateVec->begin(), tc->intermediateVec->end());
+    tc->barrier->barrier();
 
     /* SHUFFLE PHASE */
-    if (threadContext->threadID == 0) {
+    if (tc->threadID == 0) {
 
     }
-    threadContext->barrier->barrier();
+    tc->barrier->barrier();
 }
 
 
-
-
-void waitForJob(JobHandle job){
+void waitForJob(JobHandle job) {
     // TODO use pthread_join here
 }
-void getJobState(JobHandle job, JobState* state){
+
+void getJobState(JobHandle job, JobState *state) {
 
 }
-void closeJobHandle(JobHandle job){
+
+void closeJobHandle(JobHandle job) {
 
 }
