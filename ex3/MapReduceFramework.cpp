@@ -153,10 +153,14 @@ void worker(void *arg) {
         exit(SYSTEM_FAILURE_EXIT);
     }
     while (true) {
-        uint64_t state = (*(tc->atomicCounter)).load(); // TODO handle error
-        if ((state & (0x7fffffff)) >= (state >> 31 & (0x7fffffff))) {
+        uint64_t state = (*(tc->atomicCounter))++;
+        uint64_t keysNum = state >> 31 & (0x7fffffff);
+        uint64_4 keysProcessed = state & (0x7fffffff);
+        /* if all keys are processed, move on */
+        if (keysProcessed == keysNum) {
             break;
         }
+        /*  */
     }
     /* check if map phase is done; else, contribute to map phase */
     while (*(tc->curr_input) < tc->inputVec->size()) {
