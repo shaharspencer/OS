@@ -4,6 +4,7 @@
 #include <atomic>
 #include <set>
 #include <algorithm>
+#include <semaphore.h>
 
 using namespace std;
 
@@ -21,33 +22,19 @@ typedef struct ThreadContext {
     pthread_mutex_t *mutex;
     sem_t *semaphore;
     Barrier *barrier;
-    MapReduceClient &client;
+    MapReduceClient* client;
 } ThreadContext;
 
 // todo static casting
 typedef struct JobContext {
     pthread_t *threads;
     ThreadContext *contexts;
-    std::atomic<uint64_t> atomicCounter;
-    pthread_mutex_t mutex;
-    sem_t semaphore;
-    Barrier barrier;
+    std::atomic<uint64_t>* atomicCounter;
+    pthread_mutex_t* mutex;
+    sem_t* semaphore;
+    Barrier* barrier;
 } JobContext;
 
-typedef enum AtomicCounterBitsRange {
-    STAGE,
-    PROCESSED_KEYS,
-    KEYS_TO_PROCESS
-} AtomicCounterBitsRange;
-
-typedef struct BitsRange {
-    int start;
-    int length;
-} BitsRange;
-
-void initializeAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicBitType bitType);
-
-void incrementAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicBitType bitType);
 
 void worker(void *arg);
 
@@ -76,18 +63,21 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     pthread_t threads[multiThreadLevel];
     ThreadContext contexts[multiThreadLevel];
     std::atomic<uint64_t> atomicCounter(0);
+    pthread_mutex_t* mtx;
+    sem_t* sem;
     Barrier barrier(multiThreadLevel);
+    JobContext *jobContext = (JobContext) {&threads, &contexts, &mtx, &sem, &atomicCounter, &barrier};
 
     for (int i = 0; i < multiThreadLevel; i++) {
         contexts[i] = createThreadContext(i, inputVec, outputVec, nullptr,
-                                          &atomic_counter, &barrier, client);
+                                          &atomicCounter, &barrier, client, jobContext);
     }
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        pthread_create(threads + i, nullptr, single_thread_run, contexts + i);
+        pthread_create(threads + i, nullptr, worker, contexts + i);
     }
 
-    JobContext *jobContext = (JobContext) {&threads, &contexts, &atomicCounter, &barrier};
+
     return static_cast<JobHandle> (jobContext);
     // TODO figure out JobHandle
 }
