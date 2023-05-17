@@ -137,7 +137,7 @@ void worker(void *arg) {
     /* main thread updates job state */
     if (tc->threadID == 0) {
         /* currently stage is UNDEFINED, change it to MAP */
-        tc->atomicCounter->fetch_add(1 << 62);
+        tc->atomicCounter->fetch_add(1ULL << 62);
         /* initialize number of keys to process */
         uint64_t keysNum = tc->inputVec->size();
         tc->atomicCounter->fetch_add(keysNum << 31);
@@ -153,7 +153,7 @@ void worker(void *arg) {
         exit(SYSTEM_FAILURE_EXIT);
     }
     while (true) {
-        uint64_t state = tc->atomicCounter->fetch_add(1);
+        uint64_t state = tc->atomicCounter->fetch_add(1ULL);
         uint64_t keysNum = state >> 31 & (0x7fffffff);
         uint64_t keysProcessed = state & (0x7fffffff);
         /* if all keys are processed, move on */
@@ -180,11 +180,11 @@ void worker(void *arg) {
     /* main thread updates job state and shuffles */
     if (tc->threadID == 0) {
         /* currently stage is MAP, change it to SHUFFLE */
-        tc->atomicCounter->fetch_add(1 << 62);
+        tc->atomicCounter->fetch_add(1ULL << 62);
         /* since number of intermediate pairs is the same as the number
          * of input keys, the value of pairs to shuffle remains unchanged,
          * and we only need to nullify number of shuffled pairs */
-        tc->atomicCounter->fetch_and(~(0xffffffff));
+        tc->atomicCounter->fetch_and(~(0xffffffffULL));
         /* do the shuffle */
         vector<IntermediateVec>* shuffled = shuffle(tc->jobContext); // TODO change name
         tc->shuffledOutput = shuffled;
