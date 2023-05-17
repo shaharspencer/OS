@@ -182,7 +182,7 @@ void worker(void *arg) {
         /* since number of intermediate pairs is the same as the number
          * of input keys, the value of pairs to shuffle remains unchanged,
          * and we only need to nullify number of shuffled pairs */
-        (*(tc->atomicCounter)) = (*(tc->atomicCounter)) & (0x)
+        (*(tc->atomicCounter)).fetch_and(~(0xffffffff));
     }
     /* threads wait for main thread to finish updating atomicCounter */
     tc->barrier->barrier();
