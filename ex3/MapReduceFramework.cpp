@@ -185,7 +185,7 @@ void worker(void *arg) {
          * of input keys, the value of pairs to shuffle remains unchanged,
          * and we only need to nullify number of shuffled pairs */
         tc->atomicCounter->fetch_and(~(0xffffffffULL));
-        /* do the shuffle */
+        /* do the shuffle  */
         vector<IntermediateVec>* shuffled = shuffle(tc->jobContext); // TODO change name
         tc->shuffledOutput = shuffled;
     }
