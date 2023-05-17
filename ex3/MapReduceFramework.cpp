@@ -1,4 +1,5 @@
 #include "MapReduceFramework.h"
+#include "MapReduceClient.h"
 #include "Barrier/Barrier.h"
 #include <pthread.h>
 #include <atomic>
@@ -136,6 +137,7 @@ void worker(void *arg) {
     if (tc->threadID == 0) {
         /* currently stage is UNDEFINED, change it to MAP */
         (*(tc->atomicCounter)) += 1 << 62;
+        /* initialize number of keys to process */
         uint64_t keysNum = tc->inputVec->size();
         (*(tc->atomicCounter)) += keysNum << 31;
     }
@@ -152,28 +154,38 @@ void worker(void *arg) {
     while (true) {
         uint64_t state = (*(tc->atomicCounter))++;
         uint64_t keysNum = state >> 31 & (0x7fffffff);
-        uint64_4 keysProcessed = state & (0x7fffffff);
+        uint64_t keysProcessed = state & (0x7fffffff);
         /* if all keys are processed, move on */
-        if (keysProcessed == keysNum) {
+        if (keysProcessed >= keysNum) {
             break;
         }
-        /*  */
-    }
-    /* check if map phase is done; else, contribute to map phase */
-    while (*(tc->curr_input) < tc->inputVec->size()) {
-        /* save old value and increment */
-        int old_value = (*(tc->curr_input))++; // TODO make sure this agrees with 64bit implementation
-        /* do map to old value */
-        K1 *key = tc->inputVec->at(old_value).first;
-        V1 *value = tc->inputVec->at(old_value).second;
+        /* map chosen InputPair */
+        K1 *key = tc->inputVec->at(keysProcessed).first;
+        V1 *value = tc->inputVec->at(keysProcessed).second;
         tc->client->map(key, value, tc);
     }
 
     /* SORT PHASE */
-    std::sort(tc->intermediateVec->begin(), tc->intermediateVec->end());
+
+    sort(tc->intermediateVec->begin(), tc->intermediateVec->end()); // TODO
+    // add comparator for keys rather than comparing pairs
+    /* wait for other thread to finish sorting */
     tc->barrier->barrier();
 
     /* SHUFFLE PHASE */
+
+    /* main thread updates job state */
+    if (tc->threadID == 0) {
+        /* currently stage is MAP, change it to SHUFFLE */
+        (*(tc->atomicCounter)) += 1 << 62;
+        /* initialize number of intermediate pairs to shuffle */
+        uint64_t keysNum = tc->inputVec->size();
+        (*(tc->atomicCounter)) += keysNum << 31;
+        /* nullify number of shuffled pairs */
+    }
+    /* threads wait for main thread to finish updating atomicCounter */
+    tc->barrier->barrier();
+
     //TODO mutex to all other threads
     if (tc->threadID == 0) {
         vector<IntermediateVec>* shuffled = shuffle(tc->jobContext); // TODO change name
