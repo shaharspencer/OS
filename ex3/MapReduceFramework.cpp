@@ -1,6 +1,7 @@
 #include "MapReduceFramework.h"
 #include "Barrier/Barrier.h"
 #include <pthread.h>
+#include <semaphore.h>
 #include <atomic>
 #include <set>
 #include <algorithm>
@@ -16,8 +17,10 @@ typedef struct ThreadContext {
     OutputVec *outputVec;
     /* unique intermediate vector */
     IntermediateVec *intermediateVec;
-    /* grant access to mutual atomic counter and barrier */
+    /* grant access to mutual atomic counter, mutex, semaphore and barrier */
     std::atomic<int> *atomicCounter;
+    pthread_mutex_t *mutex;
+    sem_t *semaphore;
     Barrier *barrier;
     MapReduceClient &client;
     JobContext *jobContext;
@@ -27,13 +30,6 @@ typedef struct ThreadContext {
 typedef struct JobContext {
     pthread_t *threads;
     ThreadContext *contexts;
-    std::atomic<uint64_t> *atomicCounter;
-    Barrier *barrier;
-//    //state
-//    stage_t state;
-//    //mutexes TODO
-//
-//    //
 } JobContext;
 
 typedef enum AtomicCounterBitsRange {
@@ -111,15 +107,15 @@ void worker(void *arg) {
     ThreadContext *tc = (ThreadContext *) arg;
 
     /* MAP PHASE */
-    // define intermediate vector for map phase
+    /* define unique intermediate vector for map phase */
     tc->intermediateVec = new IntermediateVec(); // TODO memory TODO maybe should happen in emit2
-    // check if map phase is done; else, contribute to map phase
-    while (*(tc->curr_input) < tc->inputVec.size()) {
-        // save old value and increment
+    /* check if map phase is done; else, contribute to map phase */
+    while (*(tc->curr_input) < tc->inputVec->size()) {
+        /* save old value and increment */
         int old_value = (*(tc->curr_input))++; // TODO make sure this agrees with 64bit implementation
-        // do map to old value
-        K1 *key = tc->inputVec.at(old_value).first;
-        V1 *value = tc->inputVec.at(old_value).second;
+        /* do map to old value */
+        K1 *key = tc->inputVec->at(old_value).first;
+        V1 *value = tc->inputVec->at(old_value).second;
         tc->client.map(key, value, tc);
     }
 
