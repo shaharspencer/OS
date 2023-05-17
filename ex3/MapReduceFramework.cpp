@@ -10,7 +10,10 @@
 #define SYSTEM_FAILURE_MESSAGE "system error: "
 #define SYSTEM_FAILURE_EXIT 1
 
+// TODO load function can fail; check erors
+
 using namespace std;
+typedef struct JobContext JobContext;
 
 // todo add errors
 // todo add percentages, stages etc
@@ -27,17 +30,18 @@ typedef struct ThreadContext {
     sem_t *semaphore;
     Barrier *barrier;
     MapReduceClient *client;
+    JobContext * jobContext;
 } ThreadContext;
 
 // todo static casting
-typedef struct JobContext {
+struct JobContext {
     pthread_t *threads;
     ThreadContext *contexts;
     atomic<uint64_t> *atomicCounter;
     pthread_mutex_t *mutex;
     sem_t *semaphore;
     Barrier *barrier;
-} JobContext;
+};
 
 
 void worker(void *arg);
@@ -46,8 +50,9 @@ vector<IntermediateVec>* shuffle(JobContext *tc);
 
 ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *outputVec,
                                    IntermediateVec *intermediateVec,
-                                   std::atomic<int> *atomic_counter, Barrier *barrier,
-                                   MapReduceClient &client, JobContext *jobContext);
+                                   std::atomic<uint64_t>  *atomic_counter, pthread_mutex_t* mutex,
+                                   sem_t* semaphore, Barrier *barrier,
+                                   MapReduceClient *client, JobContext *jobContext);
 
 void emit2(K2 *key, V2 *value, void *context) {
     ThreadContext *tc = (ThreadContext *) context;
@@ -66,23 +71,31 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
 
     pthread_t threads[multiThreadLevel];
     ThreadContext contexts[multiThreadLevel];
-    try {
-        std::atomic<uint64_t> atomicCounter(0);
-        // Use atomicCounter...
-    } catch (const std::bad_alloc& e) {
-        std::cout <<SYSTEM_FAILURE_MESSAGE << "failed to allocate memory for std::atomic variable" << std::endl;
+    // TODO check memory allocation
+    std::atomic<uint64_t> atomicCounter(0);
+    /* initialize semaphore and mutex */
+
+    pthread_mutex_t mtx;
+    int res = pthread_mutex_init(&mtx, nullptr);
+    if (res != 0){
+        std::cout<<SYSTEM_FAILURE_MESSAGE<<"mutex allocation failed"<<std::endl;
         exit(SYSTEM_FAILURE_EXIT);
     }
 
-    pthread_mutex_t* mtx;
-    sem_t* sem;
+    sem_t sem;
+    res = sem_init(&sem, 1, 1);
+    if (res != 0){
+        std::cout<<SYSTEM_FAILURE_MESSAGE<<"semaphore allocation failed"<<std::endl;
+        exit(SYSTEM_FAILURE_EXIT);
+    }
+
     Barrier barrier(multiThreadLevel);
-    JobContext *jobContext = (JobContext) {&threads, &contexts, &atomicCounter,
-                                           &mutex, &semaphore, &barrier};
+    JobContext jobContext = (JobContext) {threads, contexts, &atomicCounter,
+                                           &mtx, &sem, &barrier};
 
     for (int i = 0; i < multiThreadLevel; i++) {
         contexts[i] = createThreadContext(i, inputVec, outputVec, nullptr,
-                                          &atomicCounter, &barrier, client, jobContext);
+                                          &atomicCounter, mtx, sem, &barrier, client, &jobContext);
     }
 
     for (int i = 0; i < multiThreadLevel; i++) {
@@ -99,11 +112,15 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
 }
 
 ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *outputVec,
-                                   IntermediateVec intermediateVec,
-                                   std::atomic<int> *atomic_counter, Barrier *barrier,
-                                   MapReduceClient &client, JobContext *jobContext) {
-    ThreadContext *threadContext = {threadID, inputVec, outputVec, intermediateVec,
-                                    atomic_counter, barrier, client, nullptr};
+                                   IntermediateVec *intermediateVec,
+                                   std::atomic<uint64_t>  *atomic_counter, pthread_mutex_t* mutex, sem_t* semaphore, Barrier *barrier,
+                                   MapReduceClient *client, JobContext *jobContext) {
+    ThreadContext *threadContext = new ThreadContext;
+    if (!threadContext) {/*error*/ }
+    *threadContext = {threadID, inputVec, outputVec, intermediateVec,
+                                    atomic_counter, mutex, semaphore, barrier, client,
+                                    nullptr};
+
     if (threadID == 0) {
         threadContext->jobContext = jobContext;
     }
