@@ -212,7 +212,12 @@ void waitForJob(JobHandle job) {
 }
 
 void getJobState(JobHandle job, JobState *state) {
-
+    JobContext *jc = (JobContext *) job;
+    uint64_t a = jc->atomicCounter->load();
+    uint64_t stage = a >> 62 & (0x3ULL);
+    uint64_t total = a >> 31 & (0x7fffffffULL);
+    uint64_t processed = a & (0x7fffffffULL);
+    *state = {stage_t(stage), processed * 1.0 / total};
 }
 
 void closeJobHandle(JobHandle job) {
