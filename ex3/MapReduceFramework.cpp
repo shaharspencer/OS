@@ -32,6 +32,7 @@ typedef struct ThreadContext {
     Barrier *barrier;
     const MapReduceClient *client;
     JobContext * jobContext;
+    vector<IntermediateVec>* shuffledOutput;
 } ThreadContext;
 
 // todo static casting
@@ -99,7 +100,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
         if (!threadContext) {/*error*/ }
         *threadContext = (ThreadContext) {i, &inputVec, &outputVec, nullptr,
                           &atomicCounter, &mtx, &sem, &barrier, &client,
-                          nullptr};
+                          nullptr, nullptr};
 
         if (i == 0) {
             threadContext->jobContext = jobContext;
@@ -189,12 +190,12 @@ void worker(void *arg) {
     //TODO mutex to all other threads
     if (tc->threadID == 0) {
         vector<IntermediateVec>* shuffled = shuffle(tc->jobContext); // TODO change name
-        tc->shuffleOutput = shuffled;
+        tc->shuffledOutput = shuffled;
     }
     tc->barrier->barrier();
 
     /* REDUCE PHASE */
-    vector<IntermediateVec> * shuffledVector = tc->shuffleOutput;
+    vector<IntermediateVec> * shuffledVector = tc->shuffledOutput;
 
     while (true)//TODO the remaining elements of the shuffled vector > 0)
     {
@@ -244,43 +245,44 @@ void initializeAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicCounter
 void incrementAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicBitType bitType);
 
 vector<IntermediateVec>* shuffle(JobContext *jc) {
-    bool flag = true;
-    vector<IntermediateVec>* shuffleOutput = new std::vector<IntermediateVec>();
-    while(true) {
-        std::set<K2>* max_potential_elements = new std::set<K2>();
-        if (max_potential_elements == nullptr)
-        {
-            cout << SYSTEM_FAILURE_MESSAGE << "max_potential_elements memory allocation failed"<<std::endl;
-            exit(SYSTEM_FAILURE_EXIT);
-        }
-        for (ThreadContext tc: jc->contexts)
-        {
-            if(!tc.intermediateVec->empty()) // TODO check
-            {
-                K2 elem = tc.intermediateVec->end()->first;
-                max_potential_elements->insert(elem);
-            }
-        }
+//    bool flag = true;
+//    vector<IntermediateVec>* shuffleOutput = new std::vector<IntermediateVec>();
+//    while(true) {
+//        std::set<K2>* max_potential_elements = new std::set<K2>();
+//        if (max_potential_elements == nullptr)
+//        {
+//            cout << SYSTEM_FAILURE_MESSAGE << "max_potential_elements memory allocation failed"<<std::endl;
+//            exit(SYSTEM_FAILURE_EXIT);
+//        }
+//        for (ThreadContext tc: jc->contexts)
+//        {
+//            if(!tc.intermediateVec->empty()) // TODO check
+//            {
+//                K2 elem = tc.intermediateVec->end()->first;
+//                max_potential_elements->insert(elem);
+//            }
+//        }
+//
+//        if (max_potential_elements->empty()){
+//            break;
+//        }
+//        const void* maxElem = (void *) &(std::max_element(max_potential_elements->begin(), max_potential_elements->end()));
+//
+//        IntermediateVec* newIntermidiateVector = new IntermediateVec();
+//        if(newIntermidiateVector == nullptr){
+//            cout << SYSTEM_FAILURE_MESSAGE << "intermediate vector memory allocation failed"<<std::endl;
+//            exit(SYSTEM_FAILURE_EXIT);
+//        }
+//        for (ThreadContext tc: jc->contexts){
+//            if((!tc.intermediateVec->empty()) && tc.intermediateVec->end()->first == maxElem) // TODO check
+//            {
+//                IntermediatePair elem = tc.intermediateVec->back();
+//                tc.intermediateVec->pop_back();
+//                newIntermidiateVector->push_back(elem);
+//            }
+//        }
+//        shuffleOutput->push_back(newIntermidiateVector);
+//    }
 
-        if (max_potential_elements->empty()){
-            break;
-        }
-        const void* maxElem = (void *) &(std::max_element(max_potential_elements->begin(), max_potential_elements->end()));
-
-        IntermediateVec* newIntermidiateVector = new IntermediateVec();
-        if(newIntermidiateVector == nullptr){
-            cout << SYSTEM_FAILURE_MESSAGE << "intermediate vector memory allocation failed"<<std::endl;
-            exit(SYSTEM_FAILURE_EXIT);
-        }
-        for (ThreadContext tc: jc->contexts){
-            if((!tc.intermediateVec->empty()) && tc.intermediateVec->end()->first == maxElem) // TODO check
-            {
-                IntermediatePair elem = tc.intermediateVec->back();
-                tc.intermediateVec->pop_back();
-                newIntermidiateVector->push_back(elem);
-            }
-        }
-        shuffleOutput->push_back(newIntermidiateVector);
-    }
-    return shuffleOutput;
+    return nullptr;
 }
