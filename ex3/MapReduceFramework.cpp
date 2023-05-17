@@ -85,7 +85,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
         exit(SYSTEM_FAILURE_EXIT);
     }
 
-    Barrier barrier(multiThreadLevel);
+    Barrier* barrier = new Barrier(multiThreadLevel);
     JobContext * jobContext = new JobContext;
     if (!jobContext){
 
@@ -93,13 +93,13 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
         exit(SYSTEM_FAILURE_EXIT);
     }
     *jobContext = (JobContext) {threads, contexts, &atomicCounter,
-                                           &mtx, &sem, &barrier};
+                                           &mtx, &sem, barrier};
 
     for (int i = 0; i < multiThreadLevel; i++) {
         ThreadContext *threadContext = new ThreadContext;
         if (!threadContext) {/*error*/ }
         *threadContext = (ThreadContext) {i, &inputVec, &outputVec, nullptr,
-                          &atomicCounter, &mtx, &sem, &barrier, &client,
+                          &atomicCounter, &mtx, &sem, barrier, &client,
                           nullptr, nullptr};
 
         if (i == 0) {
@@ -112,7 +112,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
 
     for (int i = 0; i < multiThreadLevel; i++) {
 
-        int result = pthread_create(threads + i, nullptr, worker, contexts + i);
+        int result = pthread_create(threads + i, nullptr, reinterpret_cast<void *(*)(void *)>(worker), contexts + i);
         if (result != 0){
             std::cout << SYSTEM_FAILURE_MESSAGE<< "pthread_create function failed"<<std::endl;
             exit(SYSTEM_FAILURE_EXIT);
@@ -137,10 +137,13 @@ void worker(void *arg) {
     /* main thread updates job state */
     if (tc->threadID == 0) {
         /* currently stage is UNDEFINED, change it to MAP */
-        tc->atomicCounter->fetch_add(1ULL << 62);
+        uint64_t addition = 1ULL << 62;
+        (*tc->atomicCounter) += addition;
+
         /* initialize number of keys to process */
         uint64_t keysNum = tc->inputVec->size();
-        tc->atomicCounter->fetch_add(keysNum << 31);
+        addition = keysNum <<31;
+        (*tc->atomicCounter)+=addition;
     }
     /* threads wait for main thread to finish updating atomicCounter */
     tc->barrier->barrier();
@@ -220,28 +223,8 @@ void closeJobHandle(JobHandle job) {
 }
 
 // TODO make this FABULOUS
-void initializeAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicCounterBitsRange atomicCounterBitsRange) {
-    BitsRange bitsRange;
-    switch (atomicCounterBitsRange) {
-        case STAGE:
-            bitsRange = {62, 2};
-            break;
-        case PROCESSED_KEYS:
-            bitsRange = {31, 31};
-            break;
-        case KEYS_TO_PROCESS:
-            bitsRange = {0, 31};
-            break;
-        default:
-            // TODO error
-            return;
-    }
-    uint64_t mask = ((1ULL << bitsRange.length) - 1) << bitsRange.start;
-    *atomicCounter = *atomicCounter & ~mask;
-    // TODO make this so it can change desired bits to given value
-}
 
-void incrementAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicBitType bitType);
+
 
 vector<IntermediateVec>* shuffle(JobContext *jc) {
 //    bool flag = true;
