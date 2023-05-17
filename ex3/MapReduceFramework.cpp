@@ -20,7 +20,7 @@ typedef struct JobContext JobContext;
 typedef struct ThreadContext {
     int threadID;
     /* grant access to mutual input and output vectors */
-    InputVec *inputVec;
+    const InputVec *inputVec;
     OutputVec *outputVec;
     /* unique intermediate vector */
     IntermediateVec *intermediateVec;
@@ -29,7 +29,7 @@ typedef struct ThreadContext {
     pthread_mutex_t *mutex;
     sem_t *semaphore;
     Barrier *barrier;
-    MapReduceClient *client;
+    const MapReduceClient *client;
     JobContext * jobContext;
 } ThreadContext;
 
@@ -47,12 +47,6 @@ struct JobContext {
 void worker(void *arg);
 
 vector<IntermediateVec>* shuffle(JobContext *tc);
-
-ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *outputVec,
-                                   IntermediateVec *intermediateVec,
-                                   std::atomic<uint64_t>  *atomic_counter, pthread_mutex_t* mutex,
-                                   sem_t* semaphore, Barrier *barrier,
-                                   MapReduceClient *client, JobContext *jobContext);
 
 void emit2(K2 *key, V2 *value, void *context) {
     ThreadContext *tc = (ThreadContext *) context;
@@ -90,17 +84,34 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     }
 
     Barrier barrier(multiThreadLevel);
-    JobContext jobContext = (JobContext) {threads, contexts, &atomicCounter,
+    JobContext * jobContext = new JobContext;
+    if (!jobContext){
+
+        std::cout<<SYSTEM_FAILURE_MESSAGE<<"failed to allocate jobContext"<<std::endl;
+        exit(SYSTEM_FAILURE_EXIT);
+    }
+    *jobContext = (JobContext) {threads, contexts, &atomicCounter,
                                            &mtx, &sem, &barrier};
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        contexts[i] = createThreadContext(i, inputVec, outputVec, nullptr,
-                                          &atomicCounter, mtx, sem, &barrier, client, &jobContext);
+        ThreadContext *threadContext = new ThreadContext;
+        if (!threadContext) {/*error*/ }
+        *threadContext = (ThreadContext) {i, &inputVec, &outputVec, nullptr,
+                          &atomicCounter, &mtx, &sem, &barrier, &client,
+                          nullptr};
+
+        if (i == 0) {
+            threadContext->jobContext = jobContext;
+        }
+
+        contexts[i] = *threadContext;
+
     }
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        int res = pthread_create(threads + i, nullptr, worker, contexts + i);
-        if (res != 0){
+
+        int result = pthread_create(threads + i, nullptr, worker, contexts + i);
+        if (result != 0){
             std::cout << SYSTEM_FAILURE_MESSAGE<< "pthread_create function failed"<<std::endl;
             exit(SYSTEM_FAILURE_EXIT);
         }
@@ -111,21 +122,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     // TODO figure out JobHandle
 }
 
-ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *outputVec,
-                                   IntermediateVec *intermediateVec,
-                                   std::atomic<uint64_t>  *atomic_counter, pthread_mutex_t* mutex, sem_t* semaphore, Barrier *barrier,
-                                   MapReduceClient *client, JobContext *jobContext) {
-    ThreadContext *threadContext = new ThreadContext;
-    if (!threadContext) {/*error*/ }
-    *threadContext = {threadID, inputVec, outputVec, intermediateVec,
-                                    atomic_counter, mutex, semaphore, barrier, client,
-                                    nullptr};
 
-    if (threadID == 0) {
-        threadContext->jobContext = jobContext;
-    }
-    return threadContext;
-}
 
 /**
  *
@@ -236,7 +233,7 @@ void incrementAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicBitType 
 
 vector<IntermediateVec>* shuffle(JobContext *jc) {
     bool flag = true;
-    vector<IntermediateVec> shuffleOutput;
+    vector<IntermediateVec>* shuffleOutput = new std::vector<IntermediateVec>();
     while(true) {
         std::set<K2>* max_potential_elements = new std::set<K2>();
         if (max_potential_elements == nullptr)
@@ -256,8 +253,7 @@ vector<IntermediateVec>* shuffle(JobContext *jc) {
         if (max_potential_elements->empty()){
             break;
         }
-
-        K2 maxElem = (std::max_element(max_potential_elements->begin(), max_potential_elements->end()));
+        const void* maxElem = (void *) &(std::max_element(max_potential_elements->begin(), max_potential_elements->end()));
 
         IntermediateVec* newIntermidiateVector = new IntermediateVec();
         if(newIntermidiateVector == nullptr){
@@ -267,11 +263,12 @@ vector<IntermediateVec>* shuffle(JobContext *jc) {
         for (ThreadContext tc: jc->contexts){
             if((!tc.intermediateVec->empty()) && tc.intermediateVec->end()->first == maxElem) // TODO check
             {
-                IntermediatePair elem = tc.intermediateVec->pop_back();
-                newIntermidiateVector->push_back(elem)
+                IntermediatePair elem = tc.intermediateVec->back();
+                tc.intermediateVec->pop_back();
+                newIntermidiateVector->push_back(elem);
             }
         }
-        shuffleOutput.push_back(newIntermidiateVector);
+        shuffleOutput->push_back(newIntermidiateVector);
     }
-    return &shuffleOutput;
+    return shuffleOutput;
 }
