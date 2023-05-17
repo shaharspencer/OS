@@ -29,26 +29,11 @@ typedef struct ThreadContext {
 typedef struct JobContext {
     pthread_t *threads;
     ThreadContext *contexts;
-    std::atomic<uint64_t> atomicCounter;
-    pthread_mutex_t mutex;
-    sem_t semaphore;
-    Barrier barrier;
+    std::atomic<uint64_t> *atomicCounter;
+    pthread_mutex_t *mutex;
+    sem_t *semaphore;
+    Barrier *barrier;
 } JobContext;
-
-typedef enum AtomicCounterBitsRange {
-    STAGE,
-    PROCESSED_KEYS,
-    KEYS_TO_PROCESS
-} AtomicCounterBitsRange;
-
-typedef struct BitsRange {
-    int start;
-    int length;
-} BitsRange;
-
-void initializeAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicBitType bitType);
-
-void incrementAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicBitType bitType);
 
 void worker(void *arg);
 
