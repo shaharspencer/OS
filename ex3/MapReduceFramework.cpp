@@ -18,18 +18,21 @@ typedef struct ThreadContext {
     /* unique intermediate vector */
     IntermediateVec *intermediateVec;
     /* grant access to mutual atomic counter, mutex, semaphore and barrier */
-    std::atomic<int> *atomicCounter;
+    std::atomic<uint64_t> *atomicCounter;
     pthread_mutex_t *mutex;
     sem_t *semaphore;
     Barrier *barrier;
     MapReduceClient &client;
-    JobContext *jobContext;
 } ThreadContext;
 
 // todo static casting
 typedef struct JobContext {
     pthread_t *threads;
     ThreadContext *contexts;
+    std::atomic<uint64_t> atomicCounter;
+    pthread_mutex_t mutex;
+    sem_t semaphore;
+    Barrier barrier;
 } JobContext;
 
 typedef enum AtomicCounterBitsRange {
