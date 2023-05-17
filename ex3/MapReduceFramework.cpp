@@ -22,21 +22,21 @@ typedef struct ThreadContext {
     /* unique intermediate vector */
     IntermediateVec *intermediateVec;
     /* grant access to mutual atomic counter, mutex, semaphore and barrier */
-    std::atomic<uint64_t> *atomicCounter;
+    atomic<uint64_t> *atomicCounter;
     pthread_mutex_t *mutex;
     sem_t *semaphore;
     Barrier *barrier;
-    MapReduceClient* client;
+    MapReduceClient *client;
 } ThreadContext;
 
 // todo static casting
 typedef struct JobContext {
     pthread_t *threads;
     ThreadContext *contexts;
-    std::atomic<uint64_t>* atomicCounter;
-    pthread_mutex_t* mutex;
-    sem_t* semaphore;
-    Barrier* barrier;
+    atomic<uint64_t> *atomicCounter;
+    pthread_mutex_t *mutex;
+    sem_t *semaphore;
+    Barrier *barrier;
 } JobContext;
 
 
@@ -77,7 +77,8 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     pthread_mutex_t* mtx;
     sem_t* sem;
     Barrier barrier(multiThreadLevel);
-    JobContext *jobContext = (JobContext) {&threads, &contexts, &mtx, &sem, &atomicCounter, &barrier};
+    JobContext *jobContext = (JobContext) {&threads, &contexts, &atomicCounter,
+                                           &mutex, &semaphore, &barrier};
 
     for (int i = 0; i < multiThreadLevel; i++) {
         contexts[i] = createThreadContext(i, inputVec, outputVec, nullptr,
@@ -91,6 +92,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
             exit(SYSTEM_FAILURE_EXIT);
         }
     }
+
 
     return static_cast<JobHandle> (jobContext);
     // TODO figure out JobHandle
@@ -113,8 +115,15 @@ ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *
  */
 void worker(void *arg) {
     ThreadContext *tc = (ThreadContext *) arg;
+
     /* MAP PHASE */
+    /* main thread updates job state */
+    if (tc->threadID == 0) {
+        (*(tc->atomicCounter)) += 1 << 62;
+    }
+
     /* define unique intermediate vector for map phase */
+    tc->intermediateVec = new IntermediateVec(); // TODO memory TODO maybe should happen in emit2
     tc->intermediateVec = new IntermediateVec(); // TODO maybe should happen in emit2
     if (tc->intermediateVec == nullptr){
         cout << SYSTEM_FAILURE_MESSAGE << "intermidiate vector memory allocation failed"<<std::endl;
