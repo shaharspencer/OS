@@ -117,25 +117,29 @@ void worker(void *arg) {
     ThreadContext *tc = (ThreadContext *) arg;
 
     /* MAP PHASE */
+
     /* main thread updates job state */
     if (tc->threadID == 0) {
+        /* currently stage is UNDEFINED, change it to MAP */
         (*(tc->atomicCounter)) += 1 << 62;
+        uint64_t keysNum = tc->inputVec->size();
+        (*(tc->atomicCounter)) += keysNum << 31;
     }
+    /* threads wait for main thread to finish updating atomicCounter */
+    tc->barrier->barrier();
 
     /* define unique intermediate vector for map phase */
-    tc->intermediateVec = new IntermediateVec(); // TODO memory TODO maybe should happen in emit2
     tc->intermediateVec = new IntermediateVec(); // TODO maybe should happen in emit2
-    if (tc->intermediateVec == nullptr){
-        cout << SYSTEM_FAILURE_MESSAGE << "intermidiate vector memory allocation failed"<<std::endl;
+    if (tc->intermediateVec == nullptr) {
+        cout << SYSTEM_FAILURE_MESSAGE <<
+            "intermidiate vector memory allocation failed" << std::endl;
         exit(SYSTEM_FAILURE_EXIT);
     }
-    // check if map phase is done; else, contribute to map phase
-    while (*(tc->atomicCounter) < tc->inputVec->size()) { //TODO get part of atomic counter that has counter for vector
-        // save old value and increment
-        int old_value = (*(tc->atomicCounter))++; // TODO make sure this agrees with 64bit implementation
-        // do map to old value
-        K1 *key = tc->inputVec->at(old_value).first;
-        V1 *value = tc->inputVec.at(old_value).second;
+    while (true) {
+        uint64_t state = (*(tc->atomicCounter)).load(); // TODO handle error
+        if ((state & (0x7fffffff)) >= (state >> 31 & (0x7fffffff))) {
+            break;
+        }
     }
     /* check if map phase is done; else, contribute to map phase */
     while (*(tc->curr_input) < tc->inputVec->size()) {
