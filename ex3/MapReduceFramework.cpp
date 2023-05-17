@@ -219,30 +219,6 @@ void closeJobHandle(JobHandle job) {
 
 }
 
-// TODO make this FABULOUS
-void initializeAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicCounterBitsRange atomicCounterBitsRange) {
-    BitsRange bitsRange;
-    switch (atomicCounterBitsRange) {
-        case STAGE:
-            bitsRange = {62, 2};
-            break;
-        case PROCESSED_KEYS:
-            bitsRange = {31, 31};
-            break;
-        case KEYS_TO_PROCESS:
-            bitsRange = {0, 31};
-            break;
-        default:
-            // TODO error
-            return;
-    }
-    uint64_t mask = ((1ULL << bitsRange.length) - 1) << bitsRange.start;
-    *atomicCounter = *atomicCounter & ~mask;
-    // TODO make this so it can change desired bits to given value
-}
-
-void incrementAtomicCounter(std::atomic<uint64_t>* atomicCounter, AtomicBitType bitType);
-
 vector<IntermediateVec>* shuffle(JobContext *jc) {
 //    bool flag = true;
 //    vector<IntermediateVec>* shuffleOutput = new std::vector<IntermediateVec>();
