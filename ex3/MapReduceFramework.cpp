@@ -1,10 +1,11 @@
 #include "MapReduceFramework.h"
 #include "Barrier/Barrier.h"
+
 #include <pthread.h>
+#include <semaphore.h>
+#include <algorithm>
 #include <atomic>
 #include <set>
-#include <algorithm>
-#include <semaphore.h>
 
 using namespace std;
 
@@ -18,18 +19,18 @@ typedef struct ThreadContext {
     /* unique intermediate vector */
     IntermediateVec *intermediateVec;
     /* grant access to mutual atomic counter, mutex, semaphore and barrier */
-    std::atomic<uint64_t> *atomicCounter;
+    atomic<uint64_t> *atomicCounter;
     pthread_mutex_t *mutex;
     sem_t *semaphore;
     Barrier *barrier;
-    MapReduceClient* client;
+    MapReduceClient *client;
 } ThreadContext;
 
 // todo static casting
 typedef struct JobContext {
     pthread_t *threads;
     ThreadContext *contexts;
-    std::atomic<uint64_t> *atomicCounter;
+    atomic<uint64_t> *atomicCounter;
     pthread_mutex_t *mutex;
     sem_t *semaphore;
     Barrier *barrier;
@@ -63,10 +64,11 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     pthread_t threads[multiThreadLevel];
     ThreadContext contexts[multiThreadLevel];
     std::atomic<uint64_t> atomicCounter(0);
-    pthread_mutex_t* mtx;
-    sem_t* sem;
+    pthread_mutex_t* mutex;
+    sem_t* semaphore;
     Barrier barrier(multiThreadLevel);
-    JobContext *jobContext = (JobContext) {&threads, &contexts, &mtx, &sem, &atomicCounter, &barrier};
+    JobContext *jobContext = (JobContext) {&threads, &contexts, &atomicCounter,
+                                           &mutex, &semaphore, &barrier};
 
     for (int i = 0; i < multiThreadLevel; i++) {
         contexts[i] = createThreadContext(i, inputVec, outputVec, nullptr,
@@ -101,15 +103,13 @@ void worker(void *arg) {
     ThreadContext *tc = (ThreadContext *) arg;
 
     /* MAP PHASE */
+    /* main thread updates job state */
+    if (tc->threadID == 0) {
+        (*(tc->atomicCounter)) += 1 << 62;
+    }
+
     /* define unique intermediate vector for map phase */
     tc->intermediateVec = new IntermediateVec(); // TODO memory TODO maybe should happen in emit2
-    // check if map phase is done; else, contribute to map phase
-    while (*(tc->atomicCounter) < tc->inputVec->size()) { //TODO get part of atomic counter that has counter for vector
-        // save old value and increment
-        int old_value = (*(tc->atomicCounter))++; // TODO make sure this agrees with 64bit implementation
-        // do map to old value
-        K1 *key = tc->inputVec->at(old_value).first;
-        V1 *value = tc->inputVec.at(old_value).second;
     /* check if map phase is done; else, contribute to map phase */
     while (*(tc->curr_input) < tc->inputVec->size()) {
         /* save old value and increment */
