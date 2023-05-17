@@ -5,6 +5,10 @@
 #include <set>
 #include <algorithm>
 #include <semaphore.h>
+#include <iostream>
+
+#define SYSTEM_FAILURE_MESSAGE "system error: "
+#define SYSTEM_FAILURE_EXIT 1
 
 using namespace std;
 
@@ -62,7 +66,14 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
 
     pthread_t threads[multiThreadLevel];
     ThreadContext contexts[multiThreadLevel];
-    std::atomic<uint64_t> atomicCounter(0);
+    try {
+        std::atomic<uint64_t> atomicCounter(0);
+        // Use atomicCounter...
+    } catch (const std::bad_alloc& e) {
+        std::cout <<SYSTEM_FAILURE_MESSAGE << "failed to allocate memory for std::atomic variable" << std::endl;
+        exit(SYSTEM_FAILURE_EXIT);
+    }
+
     pthread_mutex_t* mtx;
     sem_t* sem;
     Barrier barrier(multiThreadLevel);
@@ -74,9 +85,12 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     }
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        pthread_create(threads + i, nullptr, worker, contexts + i);
+        int res = pthread_create(threads + i, nullptr, worker, contexts + i);
+        if (res != 0){
+            std::cout << SYSTEM_FAILURE_MESSAGE<< "pthread_create function failed"<<std::endl;
+            exit(SYSTEM_FAILURE_EXIT);
+        }
     }
-
 
     return static_cast<JobHandle> (jobContext);
     // TODO figure out JobHandle
@@ -101,7 +115,11 @@ void worker(void *arg) {
     ThreadContext *tc = (ThreadContext *) arg;
     /* MAP PHASE */
     /* define unique intermediate vector for map phase */
-    tc->intermediateVec = new IntermediateVec(); // TODO memory TODO maybe should happen in emit2
+    tc->intermediateVec = new IntermediateVec(); // TODO maybe should happen in emit2
+    if (tc->intermediateVec == nullptr){
+        cout << SYSTEM_FAILURE_MESSAGE << "intermidiate vector memory allocation failed"<<std::endl;
+        exit(SYSTEM_FAILURE_EXIT);
+    }
     // check if map phase is done; else, contribute to map phase
     while (*(tc->atomicCounter) < tc->inputVec->size()) { //TODO get part of atomic counter that has counter for vector
         // save old value and increment
@@ -109,6 +127,7 @@ void worker(void *arg) {
         // do map to old value
         K1 *key = tc->inputVec->at(old_value).first;
         V1 *value = tc->inputVec.at(old_value).second;
+    }
     /* check if map phase is done; else, contribute to map phase */
     while (*(tc->curr_input) < tc->inputVec->size()) {
         /* save old value and increment */
@@ -116,7 +135,7 @@ void worker(void *arg) {
         /* do map to old value */
         K1 *key = tc->inputVec->at(old_value).first;
         V1 *value = tc->inputVec->at(old_value).second;
-        tc->client.map(key, value, tc);
+        tc->client->map(key, value, tc);
     }
 
     /* SORT PHASE */
@@ -140,7 +159,7 @@ void worker(void *arg) {
         shuffledVector->pop_back(); // remove last element
         //TODO make sure no one else tries to take this element via mutex
         // TODO lower the remaining count
-        tc->client.reduce(&currVector, tc);
+        tc->client->reduce(&currVector, tc);
     }
 }
 
@@ -186,7 +205,11 @@ vector<IntermediateVec>* shuffle(JobContext *jc) {
     vector<IntermediateVec> shuffleOutput;
     while(true) {
         std::set<K2>* max_potential_elements = new std::set<K2>();
-
+        if (max_potential_elements == nullptr)
+        {
+            cout << SYSTEM_FAILURE_MESSAGE << "max_potential_elements memory allocation failed"<<std::endl;
+            exit(SYSTEM_FAILURE_EXIT);
+        }
         for (ThreadContext tc: jc->contexts)
         {
             if(!tc.intermediateVec->empty()) // TODO check
@@ -202,12 +225,16 @@ vector<IntermediateVec>* shuffle(JobContext *jc) {
 
         K2 maxElem = (std::max_element(max_potential_elements->begin(), max_potential_elements->end()));
 
-        IntermediateVec newIntermidiateVector = new IntermediateVec();
+        IntermediateVec* newIntermidiateVector = new IntermediateVec();
+        if(newIntermidiateVector == nullptr){
+            cout << SYSTEM_FAILURE_MESSAGE << "intermediate vector memory allocation failed"<<std::endl;
+            exit(SYSTEM_FAILURE_EXIT);
+        }
         for (ThreadContext tc: jc->contexts){
             if((!tc.intermediateVec->empty()) && tc.intermediateVec->end()->first == maxElem) // TODO check
             {
                 IntermediatePair elem = tc.intermediateVec->pop_back();
-                newIntermidiateVector.push_back(elem)
+                newIntermidiateVector->push_back(elem)
             }
         }
         shuffleOutput.push_back(newIntermidiateVector);
