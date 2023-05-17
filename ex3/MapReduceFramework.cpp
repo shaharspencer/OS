@@ -7,8 +7,6 @@
 
 using namespace std;
 
-
-
 // todo add errors
 // todo add percentages, stages etc
 typedef struct ThreadContext {
@@ -18,28 +16,22 @@ typedef struct ThreadContext {
     OutputVec *outputVec;
     /* unique intermediate vector */
     IntermediateVec *intermediateVec;
-
-    vector<IntermediateVec>* shuffleOutput;
-    /* grant access to mutual atomic counter and barrier */
-    std::atomic<int> *atomicCounter;
+    /* grant access to mutual atomic counter, mutex, semaphore and barrier */
+    std::atomic<uint64_t> *atomicCounter;
+    pthread_mutex_t *mutex;
+    sem_t *semaphore;
     Barrier *barrier;
     MapReduceClient &client;
-    JobContext *jobContext;
 } ThreadContext;
-
-
 
 // todo static casting
 typedef struct JobContext {
     pthread_t *threads;
     ThreadContext *contexts;
-    std::atomic<uint64_t> *atomicCounter;
-    Barrier *barrier;
-//    //state
-//    stage_t state;
-//    //mutexes TODO
-//
-//    //
+    std::atomic<uint64_t> atomicCounter;
+    pthread_mutex_t mutex;
+    sem_t semaphore;
+    Barrier barrier;
 } JobContext;
 
 typedef enum AtomicCounterBitsRange {
@@ -66,7 +58,6 @@ ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *
                                    std::atomic<int> *atomic_counter, Barrier *barrier,
                                    MapReduceClient &client, JobContext *jobContext);
 
-
 void emit2(K2 *key, V2 *value, void *context) {
     ThreadContext *tc = (ThreadContext *) context;
     tc->intermediateVec->push_back({key, value});
@@ -88,25 +79,24 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     Barrier barrier(multiThreadLevel);
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        createThreadContext(i, inputVec, outputVec, nullptr,
-                                          &atomicCounter, &barrier, client, nullptr);
+        contexts[i] = createThreadContext(i, inputVec, outputVec, nullptr,
+                                          &atomic_counter, &barrier, client);
     }
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        pthread_create(threads + i, nullptr, worker, contexts + i);
+        pthread_create(threads + i, nullptr, single_thread_run, contexts + i);
     }
 
     JobContext *jobContext = (JobContext) {&threads, &contexts, &atomicCounter, &barrier};
     return static_cast<JobHandle> (jobContext);
     // TODO figure out JobHandle
-
 }
 
 ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *outputVec,
                                    IntermediateVec intermediateVec,
                                    std::atomic<int> *atomic_counter, Barrier *barrier,
                                    MapReduceClient &client, JobContext *jobContext) {
-    ThreadContext *threadContext = {threadID, inputVec, outputVec, intermediateVec, nullptr,
+    ThreadContext *threadContext = {threadID, inputVec, outputVec, intermediateVec,
                                     atomic_counter, barrier, client, nullptr};
     if (threadID == 0) {
         threadContext->jobContext = jobContext;
@@ -120,7 +110,7 @@ ThreadContext *createThreadContext(int threadID, InputVec *inputVec, OutputVec *
 void worker(void *arg) {
     ThreadContext *tc = (ThreadContext *) arg;
     /* MAP PHASE */
-    // define intermediate vector for map phase
+    /* define unique intermediate vector for map phase */
     tc->intermediateVec = new IntermediateVec(); // TODO memory TODO maybe should happen in emit2
     // check if map phase is done; else, contribute to map phase
     while (*(tc->atomicCounter) < tc->inputVec->size()) { //TODO get part of atomic counter that has counter for vector
@@ -129,6 +119,13 @@ void worker(void *arg) {
         // do map to old value
         K1 *key = tc->inputVec->at(old_value).first;
         V1 *value = tc->inputVec.at(old_value).second;
+    /* check if map phase is done; else, contribute to map phase */
+    while (*(tc->curr_input) < tc->inputVec->size()) {
+        /* save old value and increment */
+        int old_value = (*(tc->curr_input))++; // TODO make sure this agrees with 64bit implementation
+        /* do map to old value */
+        K1 *key = tc->inputVec->at(old_value).first;
+        V1 *value = tc->inputVec->at(old_value).second;
         tc->client.map(key, value, tc);
     }
 
