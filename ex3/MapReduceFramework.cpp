@@ -222,7 +222,7 @@ void getJobState(JobHandle job, JobState *state) {
     uint64_t stage = a >> 62 & (0x3ULL);
     uint64_t total = a >> 31 & (0x7fffffffULL);
     uint64_t processed = a & (0x7fffffffULL);
-    *state = {stage_t(stage), float(processed) / float(total)};
+    *state = {stage_t(stage), float(processed) / float(total) * 100};
 }
 
 void closeJobHandle(JobHandle job) {
