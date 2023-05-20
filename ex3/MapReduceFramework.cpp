@@ -147,7 +147,7 @@ void worker(void *arg) {
     tc->barrier->barrier();
 
     /* define unique intermediate vector for map phase */
-    tc->intermediateVec = new IntermediateVec(); // TODO maybe should happen in emit2
+    tc->intermediateVec = new IntermediateVec(); // TODO  maybe should happen in emit2
     if (tc->intermediateVec == nullptr) {
         cout << SYSTEM_FAILURE_MESSAGE <<
             "intermidiate vector memory allocation failed" << std::endl;
