@@ -44,10 +44,12 @@ struct JobContext {
     pthread_mutex_t *mutex;
     sem_t *semaphore;
     Barrier *barrier;
+    bool iswaiting;
 };
 
 
 void worker(void *arg);
+bool compare(IntermediatePair p1, IntermediatePair p2);
 
 vector<IntermediateVec>* shuffle(JobContext *tc);
 
@@ -80,7 +82,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     }
 
     sem_t sem;
-    res = sem_init(&sem, 1, 1);
+    res = sem_init(&sem, 0, 1);
     if (res != 0){
         std::cout<<SYSTEM_FAILURE_MESSAGE<<"semaphore allocation failed"<<std::endl;
         exit(SYSTEM_FAILURE_EXIT);
@@ -131,17 +133,26 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
  *
  */
 void worker(void *arg) {
+
     ThreadContext *tc = (ThreadContext *) arg;
 
     /* MAP PHASE */
-
     /* main thread updates job state */
+    tc->barrier->barrier();
     if (tc->threadID == 0) {
+
         /* currently stage is UNDEFINED, change it to MAP */
         (*(tc->atomicCounter)) += 1ULL << 62;
+        ::uint64_t toPrint = tc->atomicCounter->load()>> 62 & (0x3ULL);
+        ::printf("Stage during beggin of worker in thread %d is %llu\n", tc->threadID, toPrint);
+
         /* initialize number of keys to process */
         uint64_t keysNum = tc->inputVec->size();
+        printf("Number of keys: %llu \n", keysNum);
+
         (*(tc->atomicCounter)) += keysNum << 31;
+        toPrint = tc->atomicCounter->load() >> 31 & (0x7fffffffULL);
+        ::printf("Atomic counter after update to keysNum: %llu\n", toPrint);
     }
     /* threads wait for main thread to finish updating atomicCounter */
     tc->barrier->barrier();
@@ -153,7 +164,12 @@ void worker(void *arg) {
             "intermidiate vector memory allocation failed" << std::endl;
         exit(SYSTEM_FAILURE_EXIT);
     }
-    int x = 0;
+    tc->barrier->barrier();
+    ::printf("Defined intermidiate vec at address %p for thread %d\n",
+             tc->intermediateVec, tc->threadID);
+    tc->barrier->barrier();
+
+
     while (true) {
         uint64_t state = (*tc->atomicCounter) += 1ULL;
         uint64_t keysNum = state >> 31 & (0x7fffffff);
@@ -168,47 +184,49 @@ void worker(void *arg) {
         tc->client->map(key, value, tc);
     }
 
+
     /* SORT PHASE */
 
-    sort(tc->intermediateVec->begin(), tc->intermediateVec->end()); // TODO
-    std::cout<<tc->intermediateVec<<std::endl;
-    // add comparator for keys rather than comparing pairs
+    sort(tc->intermediateVec->begin(), tc->intermediateVec->end(), compare); // TODO
+    tc->barrier->barrier();
+    printf("sorted vector in thread %d\n", tc->threadID);
     /* wait for other thread to finish sorting */
     tc->barrier->barrier();
-//
-//    /* SHUFFLE PHASE */
-//
-//    //TODO mutex to all other threads
-//
-//    /* main thread updates job state and shuffles */
-//    if (tc->threadID == 0) {
-//        /* currently stage is MAP, change it to SHUFFLE */
-//        uint64_t addition = 1ULL << 62;
-//        (*tc->atomicCounter) += addition;
-//        /* since number of intermediate pairs is the same as the number
-//         * of input keys, the value of pairs to shuffle remains unchanged,
-//         * and we only need to nullify number of shuffled pairs */
-//        addition = ~(0xffffffffULL);
-//        tc->atomicCounter+=addition;
-//        /* do the shuffle */
-//        vector<IntermediateVec>* shuffled = shuffle(tc->jobContext); // TODO change name
-//        tc->shuffledOutput = shuffled;
-//    }
-//    /* threads wait for main thread to finish updating atomicCounter */
-//    tc->barrier->barrier();
-//
-//    /* REDUCE PHASE */
-//
-//    vector<IntermediateVec> * shuffledVector = tc->shuffledOutput;
-//
-//    while (true)//TODO the remaining elements of the shuffled vector > 0)
-//    {
-//        IntermediateVec currVector = shuffledVector->back(); // get last element
-//        shuffledVector->pop_back(); // remove last element
-//        //TODO make sure no one else tries to take this element via mutex
-//        // TODO lower the remaining count
-//        tc->client->reduce(&currVector, tc);
-//    }
+
+    /* SHUFFLE PHASE */
+
+    //TODO mutex to all other threads
+
+    /* main thread updates job state and shuffles */
+    if (tc->threadID == 0) {
+        /* currently stage is MAP, change it to SHUFFLE */
+        uint64_t addition = 1ULL << 62;
+        (*tc->atomicCounter) += addition;
+        /* since number of intermediate pairs is the same as the number
+         * of input keys, the value of pairs to shuffle remains unchanged,
+         * and we only need to nullify number of shuffled pairs */
+        addition = ~(0xffffffffULL);
+        tc->atomicCounter+=addition;
+        /* do the shuffle */
+        vector<IntermediateVec>* shuffled = shuffle(tc->jobContext); // TODO change name
+        tc->shuffledOutput = shuffled;
+        int x = 0;
+    }
+    /* threads wait for main thread to finish updating atomicCounter */
+    tc->barrier->barrier();
+
+////    /* REDUCE PHASE */
+////
+////    vector<IntermediateVec> * shuffledVector = tc->shuffledOutput;
+////
+////    while (true)//TODO the remaining elements of the shuffled vector > 0)
+////    {
+////        IntermediateVec currVector = shuffledVector->back(); // get last element
+////        shuffledVector->pop_back(); // remove last element
+////        //TODO make sure no one else tries to take this element via mutex
+////        // TODO lower the remaining count
+////        tc->client->reduce(&currVector, tc);
+////    }
 }
 
 
@@ -234,44 +252,49 @@ void closeJobHandle(JobHandle job) {
 
 
 vector<IntermediateVec>* shuffle(JobContext *jc) {
-//    bool flag = true;
-//    vector<IntermediateVec>* shuffleOutput = new std::vector<IntermediateVec>();
-//    while(true) {
-//        std::set<K2>* max_potential_elements = new std::set<K2>();
-//        if (max_potential_elements == nullptr)
-//        {
-//            cout << SYSTEM_FAILURE_MESSAGE << "max_potential_elements memory allocation failed"<<std::endl;
-//            exit(SYSTEM_FAILURE_EXIT);
-//        }
-//        for (ThreadContext tc: jc->contexts)
-//        {
-//            if(!tc.intermediateVec->empty()) // TODO check
-//            {
-//                K2 elem = tc.intermediateVec->end()->first;
-//                max_potential_elements->insert(elem);
-//            }
-//        }
-//
-//        if (max_potential_elements->empty()){
-//            break;
-//        }
-//        const void* maxElem = (void *) &(std::max_element(max_potential_elements->begin(), max_potential_elements->end()));
-//
-//        IntermediateVec* newIntermidiateVector = new IntermediateVec();
-//        if(newIntermidiateVector == nullptr){
-//            cout << SYSTEM_FAILURE_MESSAGE << "intermediate vector memory allocation failed"<<std::endl;
-//            exit(SYSTEM_FAILURE_EXIT);
-//        }
-//        for (ThreadContext tc: jc->contexts){
-//            if((!tc.intermediateVec->empty()) && tc.intermediateVec->end()->first == maxElem) // TODO check
-//            {
-//                IntermediatePair elem = tc.intermediateVec->back();
-//                tc.intermediateVec->pop_back();
-//                newIntermidiateVector->push_back(elem);
-//            }
-//        }
-//        shuffleOutput->push_back(newIntermidiateVector);
-//    }
+    bool flag = true;
+    auto* shuffleOutput = new std::vector<IntermediateVec>();
+    while(true) {
+        auto* max_potential_elements = new std::set<K2>();
+        if (max_potential_elements == nullptr)
+        {
+            cout << SYSTEM_FAILURE_MESSAGE << "max_potential_elements memory allocation failed"<<std::endl;
+            exit(SYSTEM_FAILURE_EXIT);
+        }
+        for (int )
+        {
+            if(!tc.intermediateVec->empty()) // TODO check
+            {
+                K2 elem = tc.intermediateVec->end()->first;
+                max_potential_elements->insert(elem);
+            }
+        }
 
-    return nullptr;
+        if (max_potential_elements->empty()){
+            break;
+        }
+        const void* maxElem = (void *) &(std::max_element(max_potential_elements->begin(), max_potential_elements->end()));
+
+        IntermediateVec* newIntermidiateVector = new IntermediateVec();
+        if(newIntermidiateVector == nullptr){
+            cout << SYSTEM_FAILURE_MESSAGE << "intermediate vector memory allocation failed"<<std::endl;
+            exit(SYSTEM_FAILURE_EXIT);
+        }
+        for (ThreadContext tc: jc->contexts){
+            if((!tc.intermediateVec->empty()) && tc.intermediateVec->end()->first == maxElem) // TODO check
+            {
+                IntermediatePair elem = tc.intermediateVec->back();
+                tc.intermediateVec->pop_back();
+                newIntermidiateVector->push_back(elem);
+            }
+        }
+        shuffleOutput->push_back(newIntermidiateVector);
+    }
+
+    return shuffleOutput;
+}
+
+
+bool compare (IntermediatePair p1, IntermediatePair p2) {
+    return p1.first < p2.first;
 }

@@ -287,3 +287,7 @@ vector<IntermediateVec>* shuffle(JobContext *jc) {
 
     return nullptr;
 }
+
+// "ex3/Resources (1)/Sample Client/SampleClient.cpp"
+//        "ex3/Resources (1)/MapReduceClient.h"
+//        "ex3/Resources (1)/MapReduceFramework.h" "ex3/Resources (1)/Sample Client/MapReduceFramework.cpp")
