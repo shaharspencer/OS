@@ -9,7 +9,7 @@
 #include <semaphore.h>
 #include <iostream>
 
-#define SYSTEM_FAILURE_MESSAGE "system error: "
+#define SYSTEM_FAILURE_MESSAGE "system error:"
 #define SYSTEM_FAILURE_EXIT 1
 
 // TODO load function can fail; check erors
@@ -32,7 +32,7 @@ typedef struct ThreadContext {
     sem_t *semaphore;
     Barrier *barrier;
     const MapReduceClient *client;
-    JobContext * jobContext;
+    JobContext *jobContext;
     vector<IntermediateVec>* shuffledOutput;
 } ThreadContext;
 
@@ -44,7 +44,7 @@ struct JobContext {
     pthread_mutex_t *mutex;
     sem_t *semaphore;
     Barrier *barrier;
-    bool iswaiting;
+    int multiThreadLevel;
 };
 
 
@@ -96,7 +96,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
         exit(SYSTEM_FAILURE_EXIT);
     }
     *jobContext = (JobContext) {threads, contexts, &atomicCounter,
-                                           &mtx, &sem, barrier};
+                                           &mtx, &sem, barrier, multiThreadLevel};
 
     for (int i = 0; i < multiThreadLevel; i++) {
         ThreadContext *threadContext = new ThreadContext;
@@ -137,22 +137,21 @@ void worker(void *arg) {
     ThreadContext *tc = (ThreadContext *) arg;
 
     /* MAP PHASE */
+
     /* main thread updates job state */
-    tc->barrier->barrier();
     if (tc->threadID == 0) {
 
         /* currently stage is UNDEFINED, change it to MAP */
         (*(tc->atomicCounter)) += 1ULL << 62;
-        ::uint64_t toPrint = tc->atomicCounter->load()>> 62 & (0x3ULL);
-        ::printf("Stage during beggin of worker in thread %d is %llu\n", tc->threadID, toPrint);
+//        uint64_t toPrint = tc->atomicCounter->load()>> 62 & (0x3ULL);
+//        printf("Stage during beggin of worker in thread %d is %llu\n", tc->threadID, toPrint);
 
         /* initialize number of keys to process */
-        uint64_t keysNum = tc->inputVec->size();
-        printf("Number of keys: %llu \n", keysNum);
-
+//        uint64_t keysNum = tc->inputVec->size();
+//        printf("Number of keys: %llu \n", keysNum);
         (*(tc->atomicCounter)) += keysNum << 31;
-        toPrint = tc->atomicCounter->load() >> 31 & (0x7fffffffULL);
-        ::printf("Atomic counter after update to keysNum: %llu\n", toPrint);
+//        toPrint = tc->atomicCounter->load() >> 31 & (0x7fffffffULL);
+//        printf("Atomic counter after update to keysNum: %llu\n", toPrint);
     }
     /* threads wait for main thread to finish updating atomicCounter */
     tc->barrier->barrier();
@@ -160,14 +159,13 @@ void worker(void *arg) {
     /* define unique intermediate vector for map phase */
     tc->intermediateVec = new IntermediateVec(); // TODO  maybe should happen in emit2
     if (tc->intermediateVec == nullptr) {
-        cout << SYSTEM_FAILURE_MESSAGE <<
-            "intermidiate vector memory allocation failed" << std::endl;
+        printf ("%s intermediate vector memory allocation failed,\n", SYSTEM_FAILURE_MESSAGE);
         exit(SYSTEM_FAILURE_EXIT);
     }
-    tc->barrier->barrier();
-    ::printf("Defined intermidiate vec at address %p for thread %d\n",
+//    tc->barrier->barrier();
+//    printf("Defined intermidiate vec at address %p for thread %d\n",
              tc->intermediateVec, tc->threadID);
-    tc->barrier->barrier();
+//    tc->barrier->barrier();
 
 
     while (true) {
@@ -184,12 +182,11 @@ void worker(void *arg) {
         tc->client->map(key, value, tc);
     }
 
-
     /* SORT PHASE */
 
-    sort(tc->intermediateVec->begin(), tc->intermediateVec->end(), compare); // TODO
-    tc->barrier->barrier();
-    printf("sorted vector in thread %d\n", tc->threadID);
+    sort(tc->intermediateVec->begin(), tc->intermediateVec->end(), compare);
+//    tc->barrier->barrier();
+//    printf("sorted vector in thread %d\n", tc->threadID);
     /* wait for other thread to finish sorting */
     tc->barrier->barrier();
 
