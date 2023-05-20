@@ -3,6 +3,7 @@
 #include <string>
 #include <array>
 #include <unistd.h>
+#include <iostream>
 
 class VString : public V1 {
 public:
@@ -51,17 +52,25 @@ public:
 
 	virtual void reduce(const IntermediateVec* pairs, 
 		void* context) const {
+        std::string reduceStr("");
 		const char c = static_cast<const KChar*>(pairs->at(0).first)->c;
 		int count = 0;
+        printf("new run of reduce\n");
 		for(const IntermediatePair& pair: *pairs) {
-			count += static_cast<const VCount*>(pair.second)->count;
-			delete pair.first;
-			delete pair.second;
+            char k = static_cast<const KChar*> (pair.first)->c;
+            reduceStr.push_back(k);
+//			count += static_cast<const VCount*>(pair.second)->count;
+//			delete pair.first;
+//			delete pair.second;
 		}
-		KChar* k3 = new KChar(c);
-		VCount* v3 = new VCount(count);
-		usleep(150000);
-		emit3(k3, v3, context);
+        reduceStr.push_back('\0');
+        reduceStr.push_back('\n');
+        std::cout<< "in shuffle, new run of reduce: "<<reduceStr;
+
+//		KChar* k3 = new KChar(c);
+//		VCount* v3 = new VCount(count);
+//		usleep(150000);
+//		emit3(k3, v3, context);
 	}
 };
 
