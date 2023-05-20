@@ -1,6 +1,7 @@
 #include "MapReduceFramework.h"
 #include "MapReduceClient.h"
 #include "Barrier/Barrier.h"
+
 #include <pthread.h>
 #include <atomic>
 #include <set>
@@ -137,10 +138,10 @@ void worker(void *arg) {
     /* main thread updates job state */
     if (tc->threadID == 0) {
         /* currently stage is UNDEFINED, change it to MAP */
-        tc->atomicCounter->fetch_add(1ULL << 62);
+        (*(tc->atomicCounter)) += 1ULL << 62;
         /* initialize number of keys to process */
         uint64_t keysNum = tc->inputVec->size();
-        tc->atomicCounter->fetch_add(keysNum << 31);
+        (*(tc->atomicCounter)) += keysNum << 31;
     }
     /* threads wait for main thread to finish updating atomicCounter */
     tc->barrier->barrier();
