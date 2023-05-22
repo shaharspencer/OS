@@ -244,9 +244,6 @@ void closeJobHandle(JobHandle job) {
 
 }
 
-// TODO make this FABULOUS
-
-
 
 vector<IntermediateVec>* shuffle(JobContext *jc) {
     bool flag = true;
