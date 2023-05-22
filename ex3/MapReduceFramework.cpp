@@ -147,7 +147,7 @@ void worker(void *arg) {
 //        printf("Stage during beggin of worker in thread %d is %llu\n", tc->threadID, toPrint);
 
         /* initialize number of keys to process */
-//        uint64_t keysNum = tc->inputVec->size();
+        uint64_t keysNum = tc->inputVec->size();
 //        printf("Number of keys: %llu \n", keysNum);
         (*(tc->atomicCounter)) += keysNum << 31;
 //        toPrint = tc->atomicCounter->load() >> 31 & (0x7fffffffULL);
@@ -164,12 +164,12 @@ void worker(void *arg) {
     }
 //    tc->barrier->barrier();
 //    printf("Defined intermidiate vec at address %p for thread %d\n",
-             tc->intermediateVec, tc->threadID);
+//             tc->intermediateVec, tc->threadID);
 //    tc->barrier->barrier();
 
 
     while (true) {
-        uint64_t state = (*tc->atomicCounter) += 1ULL;
+        uint64_t state = (*(tc->atomicCounter)) += 1ULL;
         uint64_t keysNum = state >> 31 & (0x7fffffff);
         uint64_t keysProcessed = state & (0x7fffffff);
         /* if all keys are processed, move on */
@@ -212,18 +212,43 @@ void worker(void *arg) {
     /* threads wait for main thread to finish updating atomicCounter */
     tc->barrier->barrier();
 
-////    /* REDUCE PHASE */
-////
-////    vector<IntermediateVec> * shuffledVector = tc->shuffledOutput;
-////
-////    while (true)//TODO the remaining elements of the shuffled vector > 0)
-////    {
-////        IntermediateVec currVector = shuffledVector->back(); // get last element
-////        shuffledVector->pop_back(); // remove last element
-////        //TODO make sure no one else tries to take this element via mutex
-////        // TODO lower the remaining count
-////        tc->client->reduce(&currVector, tc);
-////    }
+    /* REDUCE PHASE */
+
+    /* main thread updates job state */
+    if (tc->threadID == 0) {
+        /* currently stage is SHUFFLE, change it to REDUCE */
+        (*(tc->atomicCounter)) += 1ULL << 62;
+        /* nullify number of processed keys */
+        (*(tc->atomicCounter)) &= ~(0x7fffffffULL);
+    }
+    /* threads wait for main thread to finish updating atomicCounter */
+    tc->barrier->barrier();
+
+    while (true) {
+        uint64_t state = (*(tc->atomicCounter));
+        uint64_t keysNum = state >> 31 & (0x7fffffff);
+        uint64_t keysProcessed = state & (0x7fffffff);
+        /* if all keys are processed, move on */
+        if (keysProcessed >= keysNum) {
+            break;
+        }
+        /* pop an IntermediateVec from back of shuffledOutput */
+        if (pthread_mutex_lock (tc->mutex) == 0) {
+            printf ("%s mutex lock failed.\n", SYSTEM_FAILURE_MESSAGE);
+            exit (SYSTEM_FAILURE_EXIT);
+        }
+        IntermediateVec intermediateVec = tc->shuffledOutput->back();
+        tc->shuffledOutput->pop_back();
+        if (pthread_mutex_unlock (tc->mutex) == 0) {
+            printf ("%s mutex unlock failed.\n", SYSTEM_FAILURE_MESSAGE);
+            exit (SYSTEM_FAILURE_EXIT);
+        }
+        /* reduce chosen IntermediateVec */
+        if (intermediateVec) {
+            tc->client->reduce (&intermediateVec, tc);
+            tc->atomicCounter += uint64_t(intermediateVec.size());
+        }
+    }
 }
 
 
@@ -243,6 +268,9 @@ void getJobState(JobHandle job, JobState *state) {
 void closeJobHandle(JobHandle job) {
 
 }
+
+// TODO make this FABULOUS
+
 
 
 vector<IntermediateVec>* shuffle(JobContext *jc) {
