@@ -323,16 +323,19 @@ void waitForJob(JobHandle job) {
 }
 
 void getJobState(JobHandle job, JobState *state) { //TODO CHANGES ATOMIC VARIABLE!!!!!!!!!
-//    auto *jc = (JobContext *) job;
-//    auto a = jc->atomicCounter->load(std::memory_order_relaxed);
-//
-//    auto stage = a >> 62 & (0x3);
-//
-//    auto total = a >> 31 & (0x7fffffff);
-//
-//    auto processed = a & (0x7fffffff);
-//
-////    *state = {stage_t(stage), float(processed) / float(total) * 100};
+    if (pthread_mutex_lock(mutex) != 0) {
+        printf("%s mutex lock failed.\n", SYSTEM_FAILURE_MESSAGE);
+        exit(SYSTEM_FAILURE_EXIT);
+    }
+    auto a = jc->atomicCounter->load();
+    auto stage = jc->atomicCounter->load() >> 62 & (0x3);
+    auto total = jc->atomicCounter->load() >> 31 & (0x7fffffff);
+    auto processed = jc->atomicCounter->load() & (0x7fffffff);
+    *state = {stage_t(stage), float(processed) / float(total) * 100};
+    if (pthread_mutex_unlock(mutex) != 0) {
+        printf("%s mutex unlock failed.\n", SYSTEM_FAILURE_MESSAGE);
+        exit(SYSTEM_FAILURE_EXIT);
+    }
 }
 
 void closeJobHandle(JobHandle job) {
