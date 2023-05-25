@@ -4,6 +4,7 @@
 
 #include <pthread.h> // for pthread_t, pthread_mutex_t
 #include <atomic> // for atomic
+#include <string>
 #include <set>
 #include <algorithm>
 #include <semaphore.h>
@@ -71,23 +72,29 @@ void shuffle (JobContext *jc);
 IntermediatePair getMaxElement (JobContext *jc);
 
 /* functions for locking/unlocking mutex with error handling */
-void lock_mutex (pthread_mutex_t *mtx);
-void unlock_mutex (pthread_mutex_t *mtx);
+void lockMutex (pthread_mutex_t *mtx);
+void unlockMutex (pthread_mutex_t *mtx);
+
+/* handler for system failures */
+void handleSystemError (std::string errorMsg);
 
 /*****************************************************************************/
 
-void lock_mutex (pthread_mutex_t *mtx) {
+void lockMutex (pthread_mutex_t *mtx) {
     if (pthread_mutex_lock (mtx) != 0) {
-        printf ("%s mutex lock failed.\n", SYSTEM_FAILURE_MESSAGE);
-        exit (SYSTEM_FAILURE_EXIT);
+        handleSystemError ("mutex lock failed.");
     }
 }
 
-void unlock_mutex (pthread_mutex_t *mtx) {
+void unlockMutex (pthread_mutex_t *mtx) {
     if (pthread_mutex_unlock (mtx) != 0) {
-        printf ("%s mutex unlock failed.\n", SYSTEM_FAILURE_MESSAGE);
-        exit (SYSTEM_FAILURE_EXIT);
+        handleSystemError ("mutex unlock failed.");
     }
+}
+
+void handleSystemError (std::string errorMsg) {
+    printf ("%s %s\n", SYSTEM_FAILURE_MESSAGE, errorMsg);
+    exit (SYSTEM_FAILURE_EXIT);
 }
 
 /*****************************************************************************/
@@ -95,8 +102,7 @@ void unlock_mutex (pthread_mutex_t *mtx) {
 void defineIntermediateVector (ThreadContext *tc) {
     auto *intermediateVec = new IntermediateVec ();
     if (intermediateVec == nullptr) {
-        printf ("%s intermediate vector memory allocation failed.\n", SYSTEM_FAILURE_MESSAGE);
-        exit (SYSTEM_FAILURE_EXIT);
+        handleSystemError ("intermediate vector memory allocation failed.");
     }
     printf ("Defined intermediateVec at address %p for thread %d\n", intermediateVec, tc->threadID);
     tc->intermediateVec = intermediateVec;
@@ -117,11 +123,11 @@ void initMap (JobContext *jc) {
 void workerMap (ThreadContext *tc) {
     /* as long as there are still InputPairs to map, do so */
     while (tc->jobContext->processed->load() < *(tc->jobContext->total)) {
-        lock_mutex (tc->jobContext->mutex);
+        lockMutex (tc->jobContext->mutex);
 //        printf ("processed %u out of %u hence continues\n", tc->jobContext->processed->load(), *(tc->jobContext->total));
         K1 *key = tc->jobContext->inputVec->at(tc->jobContext->processed->load()).first;
         V1 *value = tc->jobContext->inputVec->at(tc->jobContext->processed->load()).second;
-        unlock_mutex (tc->jobContext->mutex);
+        unlockMutex (tc->jobContext->mutex);
         tc->jobContext->client->map (key, value, tc);
     }
 //    printf ("finished map in thread %d\n", tc->threadID);
@@ -221,7 +227,7 @@ void workerReduce (ThreadContext *tc) {
 //        printf("reducing in thread\n");
     while (true) {
 //            auto keysNum = *(tc->jobContext->total);
-        lock_mutex(tc->jobContext->mutex);
+        lockMutex(tc->jobContext->mutex);
         auto keysProcessed = tc->jobContext->processed->load();
 
         /* if all keys are processed, move on */
@@ -241,7 +247,7 @@ void workerReduce (ThreadContext *tc) {
         /* reduce chosen IntermediateVec */
         tc->jobContext->client->reduce(&intermediateVec, tc);
 
-        unlock_mutex(tc->jobContext->mutex);
+        unlockMutex(tc->jobContext->mutex);
     }
     printf("finished reduce\n");
 }
@@ -308,9 +314,10 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                             const InputVec &inputVec, OutputVec &outputVec,
                             int multiThreadLevel) {
 
+    // TODO check memory allocation
+    auto* jobContext = new JobContext ();
     auto* threads = new pthread_t[multiThreadLevel];
     auto* contexts = new ThreadContext[multiThreadLevel];
-    // TODO check memory allocation
 
     auto* stage = new stage_t(UNDEFINED_STAGE);
     auto* total = new uint32_t (0);
@@ -322,7 +329,6 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     auto* barrier = new Barrier(multiThreadLevel);
 
 
-    auto * jobContext = new JobContext();
 
     if (!jobContext){
 
