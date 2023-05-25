@@ -53,7 +53,7 @@ typedef struct JobContext {
 /*****************************************************************************/
 
 /* function for spawned threads to carry out MapReduce job */
-void worker (void *arg);
+void *worker (void *arg);
 
 /* functions called by all workers for MAP and REDUCE phases */
 void defineIntermediateVector (ThreadContext* tc);
@@ -164,14 +164,14 @@ void initShuffle (JobContext *jc) {
 
 void shuffle (JobContext *jc) {
     printf("in shuffle function\n");
-    auto* shuffledOutput = new std::vector<IntermediateVec> ();
+    auto *shuffledOutput = new std::vector<IntermediateVec> ();
     while (true) {
         /* get current max element */
         IntermediatePair maxElement = getMaxElement (jc);
         /* if there is no max element, we are finished */
         if (!maxElement.first) { break; }
         /* create vector of elements that are the same as max element */
-        auto newIntermediateVector = new IntermediateVec( );
+        auto *newIntermediateVector = new IntermediateVec( );
         for (int i = 0; i < jc->multiThreadLevel; i++) {
             /*  while this vector has more elements and the
              * last element in this vector has max value */
@@ -260,7 +260,7 @@ void emit3 (K3 *key, V3 *value, void *context) {
 
 /*****************************************************************************/
 
-void worker (void *arg) {
+void *worker (void *arg) {
     /* define arguments for worker */
     auto *tc = (ThreadContext *) arg;
 
@@ -306,6 +306,8 @@ void worker (void *arg) {
 
     /* carry out REDUCE phase */
     workerReduce (tc);
+
+    return 0;
 }
 
 /*****************************************************************************/
@@ -315,54 +317,49 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                             int multiThreadLevel) {
 
     // TODO check memory allocation
-    auto* jobContext = new JobContext ();
-    auto* threads = new pthread_t[multiThreadLevel];
-    auto* contexts = new ThreadContext[multiThreadLevel];
+    auto *jobContext = new JobContext ();
 
-    auto* stage = new stage_t(UNDEFINED_STAGE);
-    auto* total = new uint32_t (0);
-    auto* processed = new std::atomic<uint32_t>(0);
-    /* initialize semaphore and mutex */
+    auto *threads = new pthread_t[multiThreadLevel];
+    auto *contexts = new ThreadContext[multiThreadLevel];
 
-    auto* mtx = new pthread_mutex_t (PTHREAD_MUTEX_INITIALIZER);
+    auto *mutex = new pthread_mutex_t (PTHREAD_MUTEX_INITIALIZER);
+    auto *barrier = new Barrier (multiThreadLevel);
 
-    auto* barrier = new Barrier(multiThreadLevel);
+    auto *stage = new stage_t (UNDEFINED_STAGE);
+    auto *total = new uint32_t (0);
+    auto *processed = new std::atomic<uint32_t> (0);
 
-
-
-    if (!jobContext){
-
-        std::cout<<SYSTEM_FAILURE_MESSAGE<<"failed to allocate jobContext"<<std::endl;
-        exit(SYSTEM_FAILURE_EXIT);
+    if (!jobContext || !threads || !contexts || !mutex || !barrier ||
+        !stage || !total || !processed) {
+        handleSystemError ("failed to allocate memory for jobContext "
+                           "or one of its components.");
     }
-    *jobContext = (JobContext) {threads, contexts, &inputVec,
-                                &outputVec, stage, total, processed, &client,
-                                mtx, barrier, multiThreadLevel, nullptr};
+    *jobContext = (JobContext) {&client, &inputVec, &outputVec, multiThreadLevel,
+                                threads, contexts, mutex, barrier,
+                                stage, total, processed, nullptr};
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        auto *threadContext = new ThreadContext;
-        if (!threadContext) {/*error*/ } //TODO
-        *threadContext = (ThreadContext) {i, nullptr,jobContext};
+        auto *threadContext = new ThreadContext ();
+        if (!threadContext) {
+            handleSystemError ("failed to allocate memory for ThreadContext.");
+        }
+        *threadContext = (ThreadContext) {i, nullptr, jobContext};
         contexts[i] = *threadContext;
     }
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        int result = pthread_create(threads + i,
-                                    nullptr, reinterpret_cast<void *(*)(void *)>(worker),
-                                    contexts + i);
-        if (result != 0){
-            std::cout << SYSTEM_FAILURE_MESSAGE<< "pthread_create function failed"<<std::endl;
-            exit(SYSTEM_FAILURE_EXIT);
+        int res = pthread_create (threads + i, nullptr, worker, contexts + i);
+        if (res != 0) {
+            handleSystemError ("pthread_create function failed.");
         }
-
     }
-    return static_cast<JobHandle> (jobContext);
 
+    return static_cast<JobHandle> (jobContext);
 }
 
 
 void waitForJob(JobHandle job) {
-    auto * jc = (JobContext* ) job;
+    auto *jc = (JobContext* ) job;
     for (int i = 0; i < jc->multiThreadLevel; i++){
         if (pthread_join(jc->threads[i], nullptr)){
             std::cout << SYSTEM_FAILURE_MESSAGE << "pthread_join failed"<<std::endl;
@@ -371,8 +368,7 @@ void waitForJob(JobHandle job) {
     }
 }
 
-
-void getJobState(JobHandle jc, JobState *state) {
+void getJobState (JobHandle jc, JobState *state) {
     auto *ctx = (JobContext *) jc;
     auto stage = *(ctx->stage);
     auto total = *(ctx->total);
