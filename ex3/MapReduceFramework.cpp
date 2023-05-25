@@ -7,16 +7,11 @@
 #include <string>
 #include <set>
 #include <algorithm>
-#include <semaphore.h>
 #include <iostream>
 #include <unistd.h>
-#include <bitset>
 
 #define SYSTEM_FAILURE_MESSAGE "system error:"
 #define SYSTEM_FAILURE_EXIT 1
-
-// TODO load function can fail; check erors
-// todo add errors
 
 using namespace std;
 
@@ -357,7 +352,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     return static_cast<JobHandle> (jobContext);
 }
 
-
+// TODO this is wrong?
 void waitForJob(JobHandle job) {
     auto *jc = (JobContext* ) job;
     for (int i = 0; i < jc->multiThreadLevel; i++){
