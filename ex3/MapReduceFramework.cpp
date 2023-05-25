@@ -59,7 +59,8 @@ void defineIntermediateVector (ThreadContext* tc);
 void workerMap (ThreadContext *tc);
 void workerReduce (ThreadContext *tc);
 
-/* compare function to be used by std::sort() during SORT phase */
+/* compare function to be used by std::sort() during SORT phase
+ * and by getMaxElement() during SHUFFLE phase */
 bool compare (IntermediatePair p1, IntermediatePair p2);
 
 /* functions called by worker 0 only, for stage progress and SHUFFLE phase */
@@ -74,12 +75,6 @@ void lock_mutex (pthread_mutex_t *mtx);
 void unlock_mutex (pthread_mutex_t *mtx);
 
 /*****************************************************************************/
-
-void emit2 (K2 *key, V2 *value, void *context) {
-    ThreadContext *tc = (ThreadContext *) context;
-    tc->intermediateVec->push_back ({key, value});
-    (*(tc->jobContext->processed))++;
-}
 
 void emit3 (K3 *key, V3 *value, void *context) {
     ThreadContext *tc = (ThreadContext *) context;
@@ -106,7 +101,6 @@ void unlock_mutex (pthread_mutex_t *mtx) {
 /*****************************************************************************/
 
 void defineIntermediateVector (ThreadContext *tc) {
-    //    printf("Will now try to allocate intermediate vector on thread %d\n", tc->threadID);
     auto *intermediateVec = new IntermediateVec ();
     if (intermediateVec == nullptr) {
         printf ("%s intermediate vector memory allocation failed.\n", SYSTEM_FAILURE_MESSAGE);
@@ -114,6 +108,18 @@ void defineIntermediateVector (ThreadContext *tc) {
     }
     printf ("Defined intermediateVec at address %p for thread %d\n", intermediateVec, tc->threadID);
     tc->intermediateVec = intermediateVec;
+}
+
+void initMap (JobContext *jc) {
+    /* currently stage is UNDEFINED, change it to MAP */
+    (*(jc->stage)) = MAP_STAGE;
+    printf ("stage updated to: %u\n", (*(jc->stage)));
+    /* set total to size of InputVec */
+    (*(jc->total)) = jc->inputVec->size();
+    printf ("total updated to %u\n", (*(jc->total)));
+    /* nullify number of mapped InputPairs */
+    (*(jc->processed)) = 0;
+    printf ("processed updated to %u\n", jc->processed->load());
 }
 
 void workerMap (ThreadContext *tc) {
@@ -127,6 +133,82 @@ void workerMap (ThreadContext *tc) {
         tc->jobContext->client->map (key, value, tc);
     }
 //    printf ("finished map in thread %d\n", tc->threadID);
+}
+
+void emit2 (K2 *key, V2 *value, void *context) {
+    ThreadContext *tc = (ThreadContext *) context;
+    tc->intermediateVec->push_back ({key, value});
+    (*(tc->jobContext->processed))++;
+}
+
+bool compare (IntermediatePair p1, IntermediatePair p2) {
+    return *p1.first < *p2.first;
+}
+
+/*****************************************************************************/
+
+void initShuffle (JobContext *jc) {
+    /* currently stage is MAP, change it to SHUFFLE */
+    (*(jc->stage)) = SHUFFLE_STAGE;
+    printf ("stage updated to: %u\n", (*(jc->stage)));
+    /* update total to number of IntermediatePairs,
+     * i.e. sum of IntermediateVectors sizes */
+    uint32_t new_total = 0;
+    for (int i = 0; i < jc->multiThreadLevel; i++) {
+        new_total += tc->jobContext->contexts[i].intermediateVec->size();
+    }
+    (*(jc->total)) = new_total;
+    printf ("total updated to %u\n", (*(jc->total)));
+    /* nullify number of shuffled IntermediatePairs */
+    (*(jc->processed)) = 0;
+    printf ("processed updated to %u\n", jc->processed->load());
+}
+
+void shuffle (JobContext *jc) {
+    printf("in shuffle function\n");
+    auto* shuffledOutput = new std::vector<IntermediateVec> ();
+    while (true) {
+        /* get current max element */
+        IntermediatePair maxElement = getMaxElement (jc);
+        /* if there is no max element, we are finished */
+        if (!maxElement.first) { break; }
+        /* create vector of elements that are the same as max element */
+        auto newIntermediateVector = new IntermediateVec( );
+        for (int i = 0; i < jc->multiThreadLevel; i++) {
+            /*  while this vector has more elements and the
+             * last element in this vector has max value */
+            while (!jc->contexts[i].intermediateVec->empty() &&
+                   !compare (jc->contexts[i].intermediateVec->back(), maxElement) &&
+                   !compare (maxElement, jc->contexts[i].intermediateVec->back())) {
+                IntermediatePair currElement = jc->contexts[i].intermediateVec->back();
+                /* add to the key's intermediate vector */
+                newIntermediateVector->push_back (currElement);
+                /* take off the back of the current vector */
+                jc->contexts[i].intermediateVec->pop_back();
+            }
+        }
+//        ::printf("max element vector is: ");
+//        jc->contexts[0].client->reduce(newIntermidiateVector, nullptr);
+        shuffledOutput->push_back (*newIntermediateVector);
+        printf ("vector size is %zu\n", newIntermediateVector->size());
+    }
+    printf ("finished shuffling\n");
+    printf ("shuffled vector length is %zu\n", shuffledOutput->size());
+    jc->shuffledOutput = shuffledOutput;
+}
+
+IntermediatePair getMaxElement (JobContext *jc) {
+    IntermediatePair pair = IntermediatePair ({nullptr, nullptr});
+    /* iterate over threads */
+    for (int i = 0; i < jc->multiThreadLevel; i++) {
+        if (!jc->contexts[i].intermediateVec->empty()) {
+            IntermediatePair currElement = jc->contexts[i].intermediateVec->back();
+            if (!pair.first || compare (pair, currElement)) {
+                pair = currElement;
+            }
+        }
+    }
+    return pair;
 }
 
 /*****************************************************************************/
@@ -211,30 +293,6 @@ void reduceForThread(ThreadContext* tc){
     }
     printf("finished reduce\n");
 
-}
-
-void shufflePhase(ThreadContext* tc){
-    /* main thread updates job state and shuffles */
-    if (tc->threadID == 0) {
-//        lock_mutex(tc->jobContext);
-        /* currently stage is MAP, change it to SHUFFLE */
-//        lock_mutex(tc->jobContext);
-        *(tc->jobContext->stage) = SHUFFLE_STAGE;
-//        unlock_mutex(tc->jobContext);
-        /* update total to number of IntermediatePairs,
-         * i.e. sum of IntermediateVectors sizes */
-        unsigned int new_total = 0;
-//        for (int i = 0; i < tc->jobContext->multiThreadLevel; i++) {
-//            new_total += tc->jobContext->contexts[i].intermediateVec->size();
-//        }
-        *(tc->jobContext->total) = new_total;
-         /* nullify number of shuffled pairs */
-//        lock_mutex(tc->jobContext);
-        *(tc->jobContext->processed) = 0;
-//        unlock_mutex(tc->jobContext);
-        /* do the shuffle */
-        shuffle(tc->jobContext);
-    }
 }
 /**
  *
@@ -328,66 +386,4 @@ void getJobState(JobHandle jc, JobState *state) {
 
 void closeJobHandle(JobHandle job) {
     //TODO delete all memory
-}
-
-IntermediatePair getMaxElement(JobContext* jc){
-    IntermediatePair pair = IntermediatePair ({NULL, NULL});
-    /* iterate over threads */
-    for (size_t i = 0; i < jc->multiThreadLevel; i++){
-       if (!(jc->contexts[i].intermediateVec->empty())){
-           IntermediatePair currElement = jc->contexts[i].intermediateVec->back();
-           if ((!pair.first) || compare(pair, currElement)){
-               pair = currElement;
-           }
-       }
-    }
-    return pair;
-}
-
-
-void shuffle(JobContext *jc) {
-    ::printf("in shuffle function\n");
-    auto shuffleOutput = new std::vector<IntermediateVec>();
-
-    while(true) {
-        /* get current max element */
-        IntermediatePair maxElement = getMaxElement(jc);
-        /* if there is no max element, we are finished */
-        if (!maxElement.first) {
-            break;
-        }
-        /* create vector of elements that are the same as max element*/
-        auto newIntermidiateVector = new IntermediateVec();
-        for (size_t i = 0; i < jc->multiThreadLevel; i++) {
-            /*  while this vector has more elements and the
-             * last element in this vector has max value */
-            while   (
-                    !jc->contexts[i].intermediateVec->empty()
-                    &&
-                    !(compare(jc->contexts[i].intermediateVec->back(), maxElement))
-                    &&
-                    !(compare(maxElement, jc->contexts[i].intermediateVec->back()))
-                    )
-                {
-                    IntermediatePair currElement = jc->contexts[i].intermediateVec->back();
-                    /* add to the key's intermidiate vector */
-                    newIntermidiateVector->push_back(currElement);
-                    /* take off the back of the current vector */
-                    jc->contexts[i].intermediateVec->pop_back();
-                }
-            }
-//        ::printf("max element vector is: ");
-//        jc->contexts[0].client->reduce(newIntermidiateVector, nullptr);
-        shuffleOutput->push_back(*newIntermidiateVector);
-        printf("vector size is %zu\n", newIntermidiateVector->size());
-    }
-    printf("finished shuffling\n");
-    printf("shuffled vector length is %zu\n", shuffleOutput->size());
-    jc->shuffledOutput = shuffleOutput;
-
-}
-
-
-bool compare (IntermediatePair p1, IntermediatePair p2) {
-    return *p1.first < *p2.first;
 }
