@@ -76,14 +76,6 @@ void unlock_mutex (pthread_mutex_t *mtx);
 
 /*****************************************************************************/
 
-void emit3 (K3 *key, V3 *value, void *context) {
-    ThreadContext *tc = (ThreadContext *) context;
-    tc->jobContext->outputVec->push_back ({key, value});
-    (*(tc->jobContext->processed))++;
-}
-
-/*****************************************************************************/
-
 void lock_mutex (pthread_mutex_t *mtx) {
     if (pthread_mutex_lock (mtx) != 0) {
         printf ("%s mutex lock failed.\n", SYSTEM_FAILURE_MESSAGE);
@@ -213,6 +205,105 @@ IntermediatePair getMaxElement (JobContext *jc) {
 
 /*****************************************************************************/
 
+void initReduce (JobContext *jc) {
+    /* currently stage is SHUFFLE, change it to REDUCE */
+    (*(jc->stage)) = REDUCE_STAGE;
+    printf ("stage updated to: %u\n", (*(jc->stage)));
+    /* total number of IntermediatePairs to reduce remains the same,
+     * hence only need to nullify number of IntermediatePairs to reduce */
+    (*(jc->processed)) = 0;
+    printf ("processed updated to %u\n", jc->processed->load());
+}
+
+// TODO this is where we stopped yesterday
+void workerReduce (ThreadContext *tc) {
+    auto keysNum = tc->jobContext->shuffledOutput->size();
+//        printf("reducing in thread\n");
+    while (true) {
+//            auto keysNum = *(tc->jobContext->total);
+        lock_mutex(tc->jobContext->mutex);
+        auto keysProcessed = tc->jobContext->processed->load();
+
+        /* if all keys are processed, move on */
+        if (keysProcessed >= keysNum) {
+            break;
+        }
+
+        /* pop an IntermediateVec from back of shuffledOutput */
+
+        if (tc->jobContext->shuffledOutput->empty()) {
+            ::printf("error: shuffledOutput should not be empty!!!!!!!!!!!\n");
+        }
+
+        IntermediateVec intermediateVec = tc->jobContext->shuffledOutput->back();
+        tc->jobContext->shuffledOutput->pop_back();
+
+        /* reduce chosen IntermediateVec */
+        tc->jobContext->client->reduce(&intermediateVec, tc);
+
+        unlock_mutex(tc->jobContext->mutex);
+    }
+    printf("finished reduce\n");
+}
+
+void emit3 (K3 *key, V3 *value, void *context) {
+    ThreadContext *tc = (ThreadContext *) context;
+    tc->jobContext->outputVec->push_back ({key, value});
+    (*(tc->jobContext->processed))++;
+}
+
+/*****************************************************************************/
+
+void worker (void *arg) {
+    /* define arguments for worker */
+    auto *tc = (ThreadContext *) arg;
+
+    /* MAP PHASE */
+
+    /* main worker updates job state */
+    if (tc->threadID == 0) { initMap (tc->jobContext); }
+    /* other workers wait for main worker to finish */
+    tc->jobContext->barrier->barrier();
+
+    /* define unique IntermediateVec for map phase */
+    defineIntermediateVector (tc);
+    /* wait for all workers to define their IntermediateVecs */
+    tc->jobContext->barrier->barrier();
+
+    /* carry out MAP phase */
+    workerMap (tc);
+
+    /* SORT PHASE */
+
+    /* sort owns IntermediateVec by the compare function */
+    std::sort (tc->intermediateVec->begin(),
+               tc->intermediateVec->end(), compare);
+    /* wait for other workers to finish sorting */
+    tc->jobContext->barrier->barrier();
+
+    /* SHUFFLE PHASE */
+
+    /* main worker updates job state and carries out SHUFFLE phase */
+    if (tc->threadID == 0) {
+        initShuffle (tc->jobContext);
+        shuffle (tc->jobContext);
+    }
+    /* threads wait for main thread to finish updating atomicCounter */
+    tc->jobContext->barrier->barrier();
+
+    /* REDUCE PHASE */
+
+    /* main worker updates job state */
+    if (tc->threadID == 0) { initReduce (tc->jobContext); }
+    /* other workers wait for main worker to finish */
+    tc->jobContext->barrier->barrier();
+
+    /* carry out REDUCE phase */
+    workerReduce (tc);
+}
+
+/*****************************************************************************/
+
 JobHandle startMapReduceJob(const MapReduceClient &client,
                             const InputVec &inputVec, OutputVec &outputVec,
                             int multiThreadLevel) {
@@ -261,106 +352,6 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     }
     return static_cast<JobHandle> (jobContext);
 
-}
-
-
-void reduceForThread(ThreadContext* tc){
-    auto keysNum = tc->jobContext->shuffledOutput->size();
-//        printf("reducing in thread\n");
-    while (true) {
-//            auto keysNum = *(tc->jobContext->total);
-        lock_mutex(tc->jobContext->mutex);
-        auto keysProcessed = tc->jobContext->processed->load();
-
-        /* if all keys are processed, move on */
-        if (keysProcessed >= keysNum) {
-            break;
-        }
-
-        /* pop an IntermediateVec from back of shuffledOutput */
-
-        if (tc->jobContext->shuffledOutput->empty()) {
-            ::printf("error: shuffledOutput should not be empty!!!!!!!!!!!\n");
-        }
-
-        IntermediateVec intermediateVec = tc->jobContext->shuffledOutput->back();
-        tc->jobContext->shuffledOutput->pop_back();
-
-        /* reduce chosen IntermediateVec */
-        tc->jobContext->client->reduce(&intermediateVec, tc);
-
-        unlock_mutex(tc->jobContext->mutex);
-    }
-    printf("finished reduce\n");
-
-}
-/**
- *
- */
-void worker(void *arg) {
-    /* define arguments for worker */
-    auto *tc = (ThreadContext *) arg;
-
-//    printf("beggining worker in thread %d\n", tc->threadID);
-
-    /* MAP PHASE */
-
-    /* main thread updates job state */
-    if (tc->threadID == 0) {
-        const InputVec* inputVec = tc->jobContext->inputVec;
-        /* currently stage is UNDEFINED, change it to MAP */
-//        lock_mutex(tc->jobContext);
-        *(tc->jobContext->stage) = MAP_STAGE;
-        printf("stage updated to: %u\n", *(tc->jobContext->stage));
-//        unlock_mutex(tc->jobContext);
-
-//        lock_mutex(tc->jobContext);
-        *(tc->jobContext->total) = inputVec->size();
-        printf("total updated to %u\n", *(tc->jobContext->total));
-//        unlock_mutex(tc->jobContext);
-//        lock_mutex(tc->jobContext);
-        *(tc->jobContext->processed) = 0;
-        printf("processed updated to %u\n", tc->jobContext->processed->load());
-    }
-    /* threads wait for main thread to finish updating atomicCounter */
-    tc->jobContext->barrier->barrier();
-
-    /* define unique intermediate vector for map phase */
-    defineIntermediateVector(tc);
-
-    tc->jobContext->barrier->barrier();
-
-    /* MAP PHASE */
-    workerMap(tc);
-
-    /* SORT PHASE */
-//    printf("sorting vector\n");
-    sort(tc->intermediateVec->begin(),
-         tc->intermediateVec->end(), compare);
-
-
-    /* wait for other thread to finish sorting */
-    tc->jobContext->barrier->barrier();
-
-    /* SHUFFLE PHASE */
-    if (tc->threadID == 0){
-        shufflePhase(tc);
-    }
-
-    /* threads wait for main thread to finish updating atomicCounter */
-    tc->jobContext->barrier->barrier();
-
-    /* REDUCE PHASE */
-    /* main thread updates job state */
-    if (tc->threadID == 0) {
-
-        /* currently stage is SHUFFLE, change it to REDUCE */
-        *(tc->jobContext->stage) = REDUCE_STAGE;
-        *(tc->jobContext->total) = tc->jobContext->shuffledOutput->size();
-
-    }
-    tc->jobContext->barrier->barrier();
-    reduceForThread(tc);
 }
 
 
