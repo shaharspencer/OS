@@ -10,10 +10,10 @@
 #include <iostream>
 #include <unistd.h>
 
+using namespace std;
+
 #define SYSTEM_FAILURE_MESSAGE "system error:"
 #define SYSTEM_FAILURE_EXIT 1
-
-using namespace std;
 
 /*****************************************************************************/
 
@@ -88,7 +88,8 @@ void unlockMutex (pthread_mutex_t *mtx) {
 }
 
 void handleSystemError (std::string errorMsg) {
-    printf ("%s %s\n", SYSTEM_FAILURE_MESSAGE, errorMsg);
+//    printf ("%s \n", SYSTEM_FAILURE_MESSAGE, errorMsg);
+    (void) errorMsg;
     exit (SYSTEM_FAILURE_EXIT);
 }
 
@@ -99,20 +100,20 @@ void defineIntermediateVector (ThreadContext *tc) {
     if (intermediateVec == nullptr) {
         handleSystemError ("intermediate vector memory allocation failed.");
     }
-    printf ("Defined intermediateVec at address %p for thread %d\n", intermediateVec, tc->threadID);
+//    printf ("Defined intermediateVec at address %p for thread %d\n", intermediateVec, tc->threadID);
     tc->intermediateVec = intermediateVec;
 }
 
 void initMap (JobContext *jc) {
     /* currently stage is UNDEFINED, change it to MAP */
     (*(jc->stage)) = MAP_STAGE;
-    printf ("stage updated to: %u\n", (*(jc->stage)));
+//    printf ("stage updated to: %u\n", (*(jc->stage)));
     /* set total to size of InputVec */
     (*(jc->total)) = jc->inputVec->size();
-    printf ("total updated to %u\n", (*(jc->total)));
+//    printf ("total updated to %u\n", (*(jc->total)));
     /* nullify number of mapped InputPairs */
     (*(jc->processed)) = 0;
-    printf ("processed updated to %u\n", jc->processed->load());
+//    printf ("processed updated to %u\n", jc->processed->load());
 }
 
 void workerMap (ThreadContext *tc) {
@@ -143,22 +144,22 @@ bool compare (IntermediatePair p1, IntermediatePair p2) {
 void initShuffle (JobContext *jc) {
     /* currently stage is MAP, change it to SHUFFLE */
     (*(jc->stage)) = SHUFFLE_STAGE;
-    printf ("stage updated to: %u\n", (*(jc->stage)));
+//    printf ("stage updated to: %u\n", (*(jc->stage)));
     /* update total to number of IntermediatePairs,
      * i.e. sum of IntermediateVectors sizes */
     uint32_t new_total = 0;
     for (int i = 0; i < jc->multiThreadLevel; i++) {
-        new_total += tc->jobContext->contexts[i].intermediateVec->size();
+        new_total += jc->contexts[i].intermediateVec->size();
     }
     (*(jc->total)) = new_total;
-    printf ("total updated to %u\n", (*(jc->total)));
+//    printf ("total updated to %u\n", (*(jc->total)));
     /* nullify number of shuffled IntermediatePairs */
     (*(jc->processed)) = 0;
-    printf ("processed updated to %u\n", jc->processed->load());
+//    printf ("processed updated to %u\n", jc->processed->load());
 }
 
 void shuffle (JobContext *jc) {
-    printf("in shuffle function\n");
+//    printf("in shuffle function\n");
     auto *shuffledOutput = new std::vector<IntermediateVec> ();
     while (true) {
         /* get current max element */
@@ -183,10 +184,10 @@ void shuffle (JobContext *jc) {
 //        ::printf("max element vector is: ");
 //        jc->contexts[0].client->reduce(newIntermidiateVector, nullptr);
         shuffledOutput->push_back (*newIntermediateVector);
-        printf ("vector size is %zu\n", newIntermediateVector->size());
+//        printf ("vector size is %zu\n", newIntermediateVector->size());
     }
-    printf ("finished shuffling\n");
-    printf ("shuffled vector length is %zu\n", shuffledOutput->size());
+//    printf ("finished shuffling\n");
+//    printf ("shuffled vector length is %zu\n", shuffledOutput->size());
     jc->shuffledOutput = shuffledOutput;
 }
 
@@ -209,31 +210,30 @@ IntermediatePair getMaxElement (JobContext *jc) {
 void initReduce (JobContext *jc) {
     /* currently stage is SHUFFLE, change it to REDUCE */
     (*(jc->stage)) = REDUCE_STAGE;
-    printf ("stage updated to: %u\n", (*(jc->stage)));
+//    printf ("stage updated to: %u\n", (*(jc->stage)));
     /* total number of IntermediatePairs to reduce remains the same,
      * hence only need to nullify number of IntermediatePairs to reduce */
     (*(jc->processed)) = 0;
-    printf ("processed updated to %u\n", jc->processed->load());
+//    printf ("processed updated to %u\n", jc->processed->load());
 }
 
 // TODO this is where we stopped yesterday
 void workerReduce (ThreadContext *tc) {
-    auto keysNum = tc->jobContext->shuffledOutput->size();
+    auto intermediateVecNum = tc->jobContext->shuffledOutput->size();
 //        printf("reducing in thread\n");
     while (true) {
-//            auto keysNum = *(tc->jobContext->total);
         lockMutex(tc->jobContext->mutex);
-        auto keysProcessed = tc->jobContext->processed->load();
+        auto intermediateVecProcessed = tc->jobContext->processed->load();
 
         /* if all keys are processed, move on */
-        if (keysProcessed >= keysNum) {
+        if (intermediateVecProcessed >= intermediateVecNum) {
             break;
         }
 
         /* pop an IntermediateVec from back of shuffledOutput */
 
         if (tc->jobContext->shuffledOutput->empty()) {
-            ::printf("error: shuffledOutput should not be empty!!!!!!!!!!!\n");
+            printf ("error: shuffledOutput should not be empty!!!!!!!!!!!\n");
         }
 
         IntermediateVec intermediateVec = tc->jobContext->shuffledOutput->back();
@@ -374,4 +374,5 @@ void getJobState (JobHandle jc, JobState *state) {
 
 void closeJobHandle(JobHandle job) {
     //TODO delete all memory
+    (void) job;
 }
