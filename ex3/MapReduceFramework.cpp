@@ -2,83 +2,108 @@
 #include "MapReduceClient.h"
 #include "Barrier/Barrier.h"
 
-#include <pthread.h>
-#include <atomic>
+#include <pthread.h> // for pthread_t, pthread_mutex_t
+#include <atomic> // for atomic
 #include <set>
 #include <algorithm>
 #include <semaphore.h>
 #include <iostream>
 #include <unistd.h>
-#include <iostream>
 #include <bitset>
 
 #define SYSTEM_FAILURE_MESSAGE "system error:"
 #define SYSTEM_FAILURE_EXIT 1
 
 // TODO load function can fail; check erors
+// todo add errors
 
 using namespace std;
-typedef struct JobContext JobContext;
 
-// todo add errors
-// todo add percentages, stages etc
+/*****************************************************************************/
+
 typedef struct ThreadContext {
     int threadID;
-    /* unique intermediate vector */
+    /* unique IntermediateVec for MAP and SORT phases */
     IntermediateVec *intermediateVec;
-    /* grant access to mutual components */
-    JobContext *jobContext;
-
+    /* grant access to shared components */
+    struct JobContext *jobContext;
 } ThreadContext;
 
-struct JobContext {
-    pthread_t *threads;
-    ThreadContext *contexts;
-    /* grant access to mutual input and output vectors */
+typedef struct JobContext {
+    /* client and components given by it */
+    const MapReduceClient *client;
     const InputVec *inputVec;
     OutputVec *outputVec;
-    stage_t *stage;
-    uint32_t *total;
-    atomic<uint32_t> *proccessed;
-    const MapReduceClient *client;
-
+    int multiThreadLevel;
+    /* workers and their respective contexts */
+    pthread_t *threads;
+    ThreadContext *contexts;
+    /* workers synchronization components */
     pthread_mutex_t *mutex;
     Barrier *barrier;
-    int multiThreadLevel;
-    vector<IntermediateVec>* shuffledOutput;
-};
+    /* components for keeping track of job progress */
+    stage_t *stage;
+    uint32_t *total;
+    std::atomic<uint32_t> *processed;
+    /* pointer to SHUFFLE phase output */
+    std::vector<IntermediateVec> *shuffledOutput;
+} JobContext;
 
+/*****************************************************************************/
 
-void worker(void *arg);
-bool compare(IntermediatePair p1, IntermediatePair p2);
+/* function for spawned threads to carry out MapReduce job */
+void worker (void *arg);
 
-void shuffle(JobContext *jc);
-//void updateJobState(ThreadContext* tc);
+/* functions called by all workers for MAP and REDUCE phases */
+void defineIntermediateVector (ThreadContext* tc);
+void workerMap (ThreadContext *tc);
+void workerReduce (ThreadContext *tc);
 
-//void printBinary(unsigned long num) {
-//    unsigned long firstSegment = num >> 62;
-//    unsigned long secondSegment = (num >> 31) & 0x7FFFFFFF;
-//    unsigned long thirdSegment = num & 0x7FFFFFFF;
-//
-//    std::bitset<2> binaryFirst(firstSegment);
-//    std::bitset<31> binarySecond(secondSegment);
-//    std::bitset<31> binaryThird(thirdSegment);
-//
-//    std::cout << binaryFirst <<std::endl<< binarySecond << std::endl << binaryThird << std::endl;
-//}
+/* compare function to be used by std::sort() during SORT phase */
+bool compare (IntermediatePair p1, IntermediatePair p2);
 
+/* functions called by worker 0 only, for stage progress and SHUFFLE phase */
+void initMap (JobContext *jc);
+void initShuffle (JobContext *jc);
+void initReduce (JobContext *jc);
+void shuffle (JobContext *jc);
+IntermediatePair getMaxElement (JobContext *jc);
 
-void emit2(K2 *key, V2 *value, void *context) {
+/* functions for locking/unlocking mutex with error handling */
+void lock_mutex (pthread_mutex_t *mtx);
+void unlock_mutex (pthread_mutex_t *mtx);
+
+/*****************************************************************************/
+
+void emit2 (K2 *key, V2 *value, void *context) {
     ThreadContext *tc = (ThreadContext *) context;
-    tc->intermediateVec->push_back({key, value});
-    (*(tc->jobContext->proccessed))++;
+    tc->intermediateVec->push_back ({key, value});
+    (*(tc->jobContext->processed))++;
 }
 
-void emit3(K3 *key, V3 *value, void *context) {
+void emit3 (K3 *key, V3 *value, void *context) {
     ThreadContext *tc = (ThreadContext *) context;
-    tc->jobContext->outputVec->push_back({key, value});
-    (*(tc->jobContext->proccessed))++;
+    tc->jobContext->outputVec->push_back ({key, value});
+    (*(tc->jobContext->processed))++;
 }
+
+/*****************************************************************************/
+
+void lock_mutex (pthread_mutex_t *mtx) {
+    if (pthread_mutex_lock (mtx) != 0) {
+        printf ("%s mutex lock failed.\n", SYSTEM_FAILURE_MESSAGE);
+        exit (SYSTEM_FAILURE_EXIT);
+    }
+}
+
+void unlock_mutex (pthread_mutex_t *mtx) {
+    if (pthread_mutex_unlock (mtx) != 0) {
+        printf ("%s mutex unlock failed.\n", SYSTEM_FAILURE_MESSAGE);
+        exit (SYSTEM_FAILURE_EXIT);
+    }
+}
+
+/*****************************************************************************/
 
 JobHandle startMapReduceJob(const MapReduceClient &client,
                             const InputVec &inputVec, OutputVec &outputVec,
@@ -130,20 +155,6 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
 
 }
 
-void unlock_mutex(JobContext* jobContext){
-    if (pthread_mutex_unlock(jobContext->mutex) != 0) {
-        printf("%s mutex unlock failed.\n", SYSTEM_FAILURE_MESSAGE);
-        exit(SYSTEM_FAILURE_EXIT);
-    }
-}
-
-void lock_mutex(JobContext* jobContext){
-    if (pthread_mutex_lock(jobContext->mutex) != 0) {
-        printf("%s mutex lock failed.\n", SYSTEM_FAILURE_MESSAGE);
-        exit(SYSTEM_FAILURE_EXIT);
-    }
-}
-
 //void updateJobState(ThreadContext* tc){
 //
 //
@@ -167,19 +178,19 @@ void mapForThread(ThreadContext* tc){
 //        Barrier* barrier = tc->jobContext->barrier;
         const MapReduceClient * client = tc->jobContext->client;
         const InputVec* inputVec = tc->jobContext->inputVec;
-        lock_mutex(tc->jobContext);
+        lock_mutex (tc->jobContext->mutex);
         auto keysNum = inputVec->size();
 //        printf("keys num: %zu\n", keysNum);
-        unlock_mutex(tc->jobContext);
+        unlock_mutex(tc->jobContext->mutex);
 
 
-        while (tc->jobContext->proccessed->load() < *(tc->jobContext->total)) {
+        while (tc->jobContext->processed->load() < *(tc->jobContext->total)) {
         /* map chosen InputPair */
-            lock_mutex(tc->jobContext);
-            printf("processed %u out of %u hence continues\n", tc->jobContext->proccessed->load(), *(tc->jobContext->total));
-            K1 *key = inputVec->at(tc->jobContext->proccessed->load()).first;
-            V1 *value = inputVec->at(tc->jobContext->proccessed->load()).second;
-            unlock_mutex(tc->jobContext);
+            lock_mutex(tc->jobContext->mutex);
+            printf("processed %u out of %u hence continues\n", tc->jobContext->processed->load(), *(tc->jobContext->total));
+            K1 *key = inputVec->at(tc->jobContext->processed->load()).first;
+            V1 *value = inputVec->at(tc->jobContext->processed->load()).second;
+            unlock_mutex(tc->jobContext->mutex);
             client->map(key, value, tc);
 
         }
@@ -192,8 +203,8 @@ void reduceForThread(ThreadContext* tc){
 //        printf("reducing in thread\n");
     while (true) {
 //            auto keysNum = *(tc->jobContext->total);
-        lock_mutex(tc->jobContext);
-        auto keysProcessed = tc->jobContext->proccessed->load();
+        lock_mutex(tc->jobContext->mutex);
+        auto keysProcessed = tc->jobContext->processed->load();
 
         /* if all keys are processed, move on */
         if (keysProcessed >= keysNum) {
@@ -212,7 +223,7 @@ void reduceForThread(ThreadContext* tc){
         /* reduce chosen IntermediateVec */
         tc->jobContext->client->reduce(&intermediateVec, tc);
 
-        unlock_mutex(tc->jobContext);
+        unlock_mutex(tc->jobContext->mutex);
     }
     printf("finished reduce\n");
 
@@ -235,7 +246,7 @@ void shufflePhase(ThreadContext* tc){
         *(tc->jobContext->total) = new_total;
          /* nullify number of shuffled pairs */
 //        lock_mutex(tc->jobContext);
-        *(tc->jobContext->proccessed) = 0;
+        *(tc->jobContext->processed) = 0;
 //        unlock_mutex(tc->jobContext);
         /* do the shuffle */
         shuffle(tc->jobContext);
@@ -266,8 +277,8 @@ void worker(void *arg) {
         printf("total updated to %u\n", *(tc->jobContext->total));
 //        unlock_mutex(tc->jobContext);
 //        lock_mutex(tc->jobContext);
-        *(tc->jobContext->proccessed) = 0;
-        printf("processed updated to %u\n", tc->jobContext->proccessed->load());
+        *(tc->jobContext->processed) = 0;
+        printf("processed updated to %u\n", tc->jobContext->processed->load());
     }
     /* threads wait for main thread to finish updating atomicCounter */
     tc->jobContext->barrier->barrier();
@@ -326,7 +337,7 @@ void getJobState(JobHandle jc, JobState *state) {
     auto *ctx = (JobContext *) jc;
     auto stage = *(ctx->stage);
     auto total = *(ctx->total);
-    auto processed = ctx->proccessed->load();
+    auto processed = ctx->processed->load();
     float processed_percent = (float(processed) / float(total)) * 100;
     *state = {stage_t(stage), processed_percent};
 }
