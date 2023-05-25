@@ -105,6 +105,32 @@ void unlock_mutex (pthread_mutex_t *mtx) {
 
 /*****************************************************************************/
 
+void defineIntermediateVector (ThreadContext *tc) {
+    //    printf("Will now try to allocate intermediate vector on thread %d\n", tc->threadID);
+    auto *intermediateVec = new IntermediateVec ();
+    if (intermediateVec == nullptr) {
+        printf ("%s intermediate vector memory allocation failed.\n", SYSTEM_FAILURE_MESSAGE);
+        exit (SYSTEM_FAILURE_EXIT);
+    }
+    printf ("Defined intermediateVec at address %p for thread %d\n", intermediateVec, tc->threadID);
+    tc->intermediateVec = intermediateVec;
+}
+
+void workerMap (ThreadContext *tc) {
+    /* as long as there are still InputPairs to map, do so */
+    while (tc->jobContext->processed->load() < *(tc->jobContext->total)) {
+        lock_mutex (tc->jobContext->mutex);
+//        printf ("processed %u out of %u hence continues\n", tc->jobContext->processed->load(), *(tc->jobContext->total));
+        K1 *key = tc->jobContext->inputVec->at(tc->jobContext->processed->load()).first;
+        V1 *value = tc->jobContext->inputVec->at(tc->jobContext->processed->load()).second;
+        unlock_mutex (tc->jobContext->mutex);
+        tc->jobContext->client->map (key, value, tc);
+    }
+//    printf ("finished map in thread %d\n", tc->threadID);
+}
+
+/*****************************************************************************/
+
 JobHandle startMapReduceJob(const MapReduceClient &client,
                             const InputVec &inputVec, OutputVec &outputVec,
                             int multiThreadLevel) {
@@ -155,48 +181,6 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
 
 }
 
-//void updateJobState(ThreadContext* tc){
-//
-//
-//}
-
-
-void defineIntermidiateVector(ThreadContext* tc){
-    //    printf("Will now try to allocate intermediate vector on thread %d\n", tc->threadID);
-    auto *intermediateVec = new IntermediateVec ();
-    if (intermediateVec == nullptr) {
-        printf ("%s intermediate vector memory allocation failed,\n", SYSTEM_FAILURE_MESSAGE);
-        exit(SYSTEM_FAILURE_EXIT);
-    }
-    printf("Defined intermidiate vec at address %p for thread %d\n",
-           intermediateVec, tc->threadID);
-    tc->intermediateVec = intermediateVec;
-}
-
-void mapForThread(ThreadContext* tc){
-//        printf("map phase in thread %d\n", tc->threadID);
-//        Barrier* barrier = tc->jobContext->barrier;
-        const MapReduceClient * client = tc->jobContext->client;
-        const InputVec* inputVec = tc->jobContext->inputVec;
-        lock_mutex (tc->jobContext->mutex);
-        auto keysNum = inputVec->size();
-//        printf("keys num: %zu\n", keysNum);
-        unlock_mutex(tc->jobContext->mutex);
-
-
-        while (tc->jobContext->processed->load() < *(tc->jobContext->total)) {
-        /* map chosen InputPair */
-            lock_mutex(tc->jobContext->mutex);
-            printf("processed %u out of %u hence continues\n", tc->jobContext->processed->load(), *(tc->jobContext->total));
-            K1 *key = inputVec->at(tc->jobContext->processed->load()).first;
-            V1 *value = inputVec->at(tc->jobContext->processed->load()).second;
-            unlock_mutex(tc->jobContext->mutex);
-            client->map(key, value, tc);
-
-        }
-    printf("finished map in thread %d\n", tc->threadID);
-
-}
 
 void reduceForThread(ThreadContext* tc){
     auto keysNum = tc->jobContext->shuffledOutput->size();
@@ -284,12 +268,12 @@ void worker(void *arg) {
     tc->jobContext->barrier->barrier();
 
     /* define unique intermediate vector for map phase */
-    defineIntermidiateVector(tc);
+    defineIntermediateVector(tc);
 
     tc->jobContext->barrier->barrier();
 
     /* MAP PHASE */
-    mapForThread(tc);
+    workerMap(tc);
 
     /* SORT PHASE */
 //    printf("sorting vector\n");
