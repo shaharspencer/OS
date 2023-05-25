@@ -53,9 +53,10 @@ void *worker (void *arg);
 /* functions called by all workers for MAP and REDUCE phases */
 void defineIntermediateVector (ThreadContext* tc);
 void workerMap (ThreadContext *tc);
+void workerSort (ThreadContext *tc);
 void workerReduce (ThreadContext *tc);
 
-/* compare function to be used by std::sort() during SORT phase
+/* compare function to be used by workerSort() during SORT phase
  * and by getMaxElement() during SHUFFLE phase */
 bool compare (IntermediatePair p1, IntermediatePair p2);
 
@@ -135,6 +136,14 @@ void emit2 (K2 *key, V2 *value, void *context) {
     (*(tc->jobContext->processed))++;
 }
 
+/*****************************************************************************/
+
+void workerSort (ThreadContext *tc) {
+    /* sort owns IntermediateVec by the compare function */
+    std::sort (tc->intermediateVec->begin(),
+               tc->intermediateVec->end(), compare);
+}
+
 bool compare (IntermediatePair p1, IntermediatePair p2) {
     return *p1.first < *p2.first;
 }
@@ -161,6 +170,9 @@ void initShuffle (JobContext *jc) {
 void shuffle (JobContext *jc) {
 //    printf("in shuffle function\n");
     auto *shuffledOutput = new std::vector<IntermediateVec> ();
+    if (shuffledOutput == nullptr) {
+        handleSystemError ("memory allocation for shuffledVector failed.");
+    }
     while (true) {
         /* get current max element */
         IntermediatePair maxElement = getMaxElement (jc);
@@ -168,6 +180,9 @@ void shuffle (JobContext *jc) {
         if (!maxElement.first) { break; }
         /* create vector of elements that are the same as max element */
         auto *newIntermediateVector = new IntermediateVec( );
+        if (newIntermediateVector == nullptr) {
+            handleSystemError ("memory allocation for new IntermediateVector failed.");
+        }
         for (int i = 0; i < jc->multiThreadLevel; i++) {
             /*  while this vector has more elements and the
              * last element in this vector has max value */
@@ -182,7 +197,6 @@ void shuffle (JobContext *jc) {
             }
         }
 //        ::printf("max element vector is: ");
-//        jc->contexts[0].client->reduce(newIntermidiateVector, nullptr);
         shuffledOutput->push_back (*newIntermediateVector);
 //        printf ("vector size is %zu\n", newIntermediateVector->size());
     }
@@ -221,30 +235,21 @@ void initReduce (JobContext *jc) {
 void workerReduce (ThreadContext *tc) {
     auto intermediateVecNum = tc->jobContext->shuffledOutput->size();
 //        printf("reducing in thread\n");
-    while (true) {
-        lockMutex(tc->jobContext->mutex);
-        auto intermediateVecProcessed = tc->jobContext->processed->load();
-
-        /* if all keys are processed, move on */
-        if (intermediateVecProcessed >= intermediateVecNum) {
-            break;
-        }
+    while (tc->jobContext->processed->load() < *(tc->jobContext->total)) {
+        lockMutex (tc->jobContext->mutex);
 
         /* pop an IntermediateVec from back of shuffledOutput */
-
         if (tc->jobContext->shuffledOutput->empty()) {
             printf ("error: shuffledOutput should not be empty!!!!!!!!!!!\n");
         }
-
         IntermediateVec intermediateVec = tc->jobContext->shuffledOutput->back();
         tc->jobContext->shuffledOutput->pop_back();
-
         /* reduce chosen IntermediateVec */
         tc->jobContext->client->reduce(&intermediateVec, tc);
 
-        unlockMutex(tc->jobContext->mutex);
+        unlockMutex (tc->jobContext->mutex);
     }
-    printf("finished reduce\n");
+//    printf("finished reduce\n");
 }
 
 void emit3 (K3 *key, V3 *value, void *context) {
@@ -276,9 +281,8 @@ void *worker (void *arg) {
 
     /* SORT PHASE */
 
-    /* sort owns IntermediateVec by the compare function */
-    std::sort (tc->intermediateVec->begin(),
-               tc->intermediateVec->end(), compare);
+    /* carry out SORT phase */
+    workerSort (tc);
     /* wait for other workers to finish sorting */
     tc->jobContext->barrier->barrier();
 
@@ -302,7 +306,7 @@ void *worker (void *arg) {
     /* carry out REDUCE phase */
     workerReduce (tc);
 
-    return 0;
+    return nullptr;
 }
 
 /*****************************************************************************/
@@ -353,8 +357,10 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
 }
 
 // TODO this is wrong?
+// TODO all threads reach here(?) so first one to get needs to prevent all others
+// TODO could be done with shared bool
 void waitForJob(JobHandle job) {
-    auto *jc = (JobContext* ) job;
+    auto *jc = (JobContext *) job;
     for (int i = 0; i < jc->multiThreadLevel; i++){
         if (pthread_join(jc->threads[i], nullptr)){
             std::cout << SYSTEM_FAILURE_MESSAGE << "pthread_join failed"<<std::endl;
@@ -365,11 +371,13 @@ void waitForJob(JobHandle job) {
 
 void getJobState (JobHandle jc, JobState *state) {
     auto *ctx = (JobContext *) jc;
+    lockMutex (ctx->mutex);
     auto stage = *(ctx->stage);
     auto total = *(ctx->total);
     auto processed = ctx->processed->load();
     float processed_percent = (float(processed) / float(total)) * 100;
     *state = {stage_t(stage), processed_percent};
+    unlockMutex (ctx->mutex);
 }
 
 void closeJobHandle(JobHandle job) {
