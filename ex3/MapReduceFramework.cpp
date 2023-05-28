@@ -1,6 +1,6 @@
 #include "MapReduceFramework.h"
 #include "MapReduceClient.h"
-#include "Barrier/Barrier.h"
+#include "Barrier.h"
 
 #include <pthread.h> // for pthread_t, pthread_mutex_t
 #include <atomic> // for atomic

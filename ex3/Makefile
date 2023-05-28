@@ -10,7 +10,7 @@ MapReduceFramework.o: MapReduceFramework.h MapReduceClient.h Barrier.h MapReduce
 	$(CXX) $(CXXFLAGS) MapReduceFramework.cpp -c -o MapReduceFramework.o
 
 Barrier.o: Barrier.h Barrier.cpp
-	$(CXX) $(CXXFLAGS) Barrier/Barrier.cpp -c -o Barrier.o
+	$(CXX) $(CXXFLAGS) Barrier.cpp -c -o Barrier.o
 
 clean:
 	rm -f *.o *.a
