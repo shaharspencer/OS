@@ -6,10 +6,10 @@ all: libMapReduceFramework.a
 libMapReduceFramework.a: MapReduceFramework.o Barrier.o
 	ar rcs $@ $(OBJS)
 
-MapReduceFramework.o: MapReduceFramework.h MapReduceClient.h Barrier/Barrier.h MapReduceFramework.cpp
+MapReduceFramework.o: MapReduceFramework.h MapReduceClient.h Barrier.h MapReduceFramework.cpp
 	$(CXX) $(CXXFLAGS) MapReduceFramework.cpp -c -o MapReduceFramework.o
 
-Barrier.o: Barrier/Barrier.h Barrier/Barrier.cpp
+Barrier.o: Barrier.h Barrier.cpp
 	$(CXX) $(CXXFLAGS) Barrier/Barrier.cpp -c -o Barrier.o
 
 clean:
