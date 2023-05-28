@@ -3,17 +3,12 @@ Shahar Spencer (208067017), Nadav Elan Eliash (318162971)
 EX: 3
 
 FILES:
-MapReduceFramework.cpp -- a file with some code
+MapReduceFramework.cpp -- our implementation for the map reduce framework
+Barrier.cpp -- provided source file
+Barrier.h -- provided h file
 
 REMARKS:
-
+none
 
 ANSWERS:
-
-Q1:
-Here are answers to theoreical questions
-if there were such questions in the exercise.
-
-Q2:
-Here are answers to theoreical questions
-if there were such questions in the exercise.
+none
