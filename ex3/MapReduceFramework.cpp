@@ -10,8 +10,6 @@
 
 using namespace std;
 
-// TODO cleanup code
-
 #define SYSTEM_FAILURE_MESSAGE "system error:"
 #define SYSTEM_FAILURE_EXIT 1
 
@@ -44,7 +42,7 @@ typedef struct JobContext {
     unsigned long total;
     std::atomic<unsigned long> *processed;
     /* pointer to SHUFFLE phase output */
-    std::vector<IntermediateVec> *shuffledOutput;
+    std::vector<IntermediateVec > *shuffledOutput;
 } JobContext;
 
 /*****************************************************************************/
@@ -91,24 +89,19 @@ void unlockMutex (pthread_mutex_t *mtx) {
 }
 
 void handleSystemError (const char *errorMsg) {
-    fprintf (stderr, "%s %s\n", SYSTEM_FAILURE_MESSAGE, errorMsg); // TODO stderr only for Mattan tests
+    printf ("%s %s\n", SYSTEM_FAILURE_MESSAGE, errorMsg);
     exit (SYSTEM_FAILURE_EXIT);
 }
 
 /*****************************************************************************/
 
 void defineIntermediateVector (ThreadContext *tc) {
-    printf("allocating intermidiate vector for thread %d\n", tc->threadID);
-    try{
+    try {
         auto *intermediateVec = new IntermediateVec ();
         tc->intermediateVec = intermediateVec;
-    }
-    catch (const std::bad_alloc& b)
-    {
+    } catch (const std::bad_alloc& b) {
         handleSystemError ("intermediate vector memory allocation failed.");
     }
-
-
 }
 
 void initMap (JobContext *jc) {
@@ -128,8 +121,12 @@ void workerMap (ThreadContext *tc) {
     auto total = tc->jobContext->total;
     unlockMutex (tc->jobContext->mutex);
     /* as long as there are still InputPairs to map, do so */
-    while (tc->jobContext->processed->load() < total) {
+    while (true) {
         lockMutex (tc->jobContext->mutex);
+        if (tc->jobContext->processed->load() >= total) {
+            unlockMutex (tc->jobContext->mutex);
+            break;
+        }
         K1 *key = tc->jobContext->inputVec->at(tc->jobContext->processed->load()).first;
         V1 *value = tc->jobContext->inputVec->at(tc->jobContext->processed->load()).second;
         (*(tc->jobContext->processed))++;
@@ -140,9 +137,7 @@ void workerMap (ThreadContext *tc) {
 
 void emit2 (K2 *key, V2 *value, void *context) {
     auto *tc = (ThreadContext *) context;
-//    lockMutex (tc->jobContext->mutex);
     tc->intermediateVec->push_back ({key, value});
-//    unlockMutex (tc->jobContext->mutex);
 }
 
 /*****************************************************************************/
@@ -176,12 +171,10 @@ void initShuffle (JobContext *jc) {
 
 void shuffle (JobContext *jc) {
     lockMutex (jc->mutex);
-    std::vector<IntermediateVec> *shuffledOutput;
-    printf("defining shuffledoutput vector");
-    try{
-        shuffledOutput = new std::vector<IntermediateVec> ();
-    }
-    catch (std::bad_alloc& b){
+    std::vector<IntermediateVec > *shuffledOutput;
+    try {
+        shuffledOutput = new std::vector<IntermediateVec > ();
+    } catch (const std::bad_alloc& b) {
         handleSystemError ("memory allocation for shuffledVector failed.");
     }
 
@@ -191,14 +184,12 @@ void shuffle (JobContext *jc) {
         /* if there is no max element, we are finished */
         if (!maxElement.first) { break; }
         /* create vector of elements that are the same as max element */
-        IntermediateVec * newIntermediateVector;
-        try{
+        IntermediateVec *newIntermediateVector;
+        try {
             newIntermediateVector = new IntermediateVec( );
-        }
-        catch (std::bad_alloc& b){
+        } catch (const std::bad_alloc& b) {
             handleSystemError ("memory allocation for new IntermediateVector failed.");
         }
-
 
         for (int i = 0; i < jc->multiThreadLevel; i++) {
             /*  while this vector has more elements and the
@@ -214,6 +205,7 @@ void shuffle (JobContext *jc) {
             }
         }
         shuffledOutput->push_back (*newIntermediateVector);
+        delete newIntermediateVector;
     }
     jc->shuffledOutput = shuffledOutput;
     unlockMutex (jc->mutex);
@@ -239,9 +231,9 @@ void initReduce (JobContext *jc) {
     lockMutex (jc->mutex);
     /* currently stage is SHUFFLE, change it to REDUCE */
     jc->stage = REDUCE_STAGE;
-    jc->total = jc->shuffledOutput->size();
+//    jc->total = jc->shuffledOutput->size();
     /* total number of IntermediatePairs to reduce remains the same,
-     * hence only need to nullify number of IntermediatePairs to reduce */
+     * nullify number of IntermediatePairs to reduce */
     (*(jc->processed)) = 0;
     unlockMutex (jc->mutex);
 }
@@ -250,26 +242,25 @@ void workerReduce (ThreadContext *tc) {
     lockMutex (tc->jobContext->mutex);
     auto total = tc->jobContext->total;
     unlockMutex (tc->jobContext->mutex);
-    while ((tc->jobContext->processed->load()) < total) {
+    while (true) {
         lockMutex (tc->jobContext->mutex);
-        /* pop an IntermediateVec from back of shuffledOutput */
-        if (tc->jobContext->shuffledOutput->empty()) {
-            printf ("error: shuffledOutput should not be empty!!!!!!!!!!!\n");
+        if (tc->jobContext->processed->load() >= total) {
+            unlockMutex (tc->jobContext->mutex);
+            break;
         }
+        /* pop an IntermediateVec from back of shuffledOutput */
         IntermediateVec intermediateVec = tc->jobContext->shuffledOutput->back();
         tc->jobContext->shuffledOutput->pop_back();
         /* reduce chosen IntermediateVec */
         tc->jobContext->client->reduce(&intermediateVec, tc);
-        (*(tc->jobContext->processed))++;
+        (*(tc->jobContext->processed)) += intermediateVec.size();
         unlockMutex (tc->jobContext->mutex);
     }
 }
 
 void emit3 (K3 *key, V3 *value, void *context) {
     auto *tc = (ThreadContext *) context;
-//    lockMutex (tc->jobContext->mutex);
     tc->jobContext->outputVec->push_back ({key, value});
-//    unlockMutex (tc->jobContext->mutex);
 }
 
 /*****************************************************************************/
@@ -328,28 +319,26 @@ void *worker (void *arg) {
 JobHandle startMapReduceJob(const MapReduceClient &client,
                             const InputVec &inputVec, OutputVec &outputVec,
                             int multiThreadLevel) {
-    JobContext* jobContext;
-    pthread_t* threads;
-    ThreadContext * contexts;
-    pthread_mutex_t * mutex;
-    Barrier* barrier;
-    bool* isWorkerWaiting;
-    std::atomic<unsigned long>* processed;
+    JobContext *jobContext;
+    pthread_t *threads;
+    ThreadContext *contexts;
+    pthread_mutex_t *mutex;
+    Barrier *barrier;
+    bool *isWorkerWaiting;
+    std::atomic<unsigned long> *processed;
 
-    try{
+    try {
         jobContext = new JobContext ();
         threads = new pthread_t[multiThreadLevel];
         contexts = new ThreadContext[multiThreadLevel];
-        mutex = new  pthread_mutex_t (PTHREAD_MUTEX_INITIALIZER);
+        mutex = new pthread_mutex_t (PTHREAD_MUTEX_INITIALIZER);
         barrier = new Barrier (multiThreadLevel);
         isWorkerWaiting = new bool[multiThreadLevel];
         processed = new std::atomic<unsigned long> (0);
-    }
-    catch (const std::bad_alloc& b){
+    } catch (const std::bad_alloc& b) {
         handleSystemError ("failed to allocate memory for jobContext "
                            "or one of its components.");
     }
-
 
     *jobContext = (JobContext) {&client, &inputVec, &outputVec, multiThreadLevel,
                                 threads, contexts, mutex, barrier,
@@ -357,17 +346,15 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                                 UNDEFINED_STAGE, 0, processed, nullptr};
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        ThreadContext * threadContext;
-        try{
+        ThreadContext *threadContext;
+        try {
             threadContext = new ThreadContext ();
-        }
-        catch (const std::bad_alloc& b){
+        } catch (const std::bad_alloc& b) {
             handleSystemError ("failed to allocate memory for ThreadContext.");
         }
-
-
         *threadContext = (ThreadContext) {i, nullptr, jobContext};
         contexts[i] = *threadContext;
+        delete threadContext;
         isWorkerWaiting[i] = false;
     }
 
@@ -378,7 +365,6 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
         }
     }
 
-    printf ("Created job!\n");
     return static_cast<JobHandle> (jobContext);
 }
 
@@ -410,8 +396,9 @@ void getJobState (JobHandle jc, JobState *state) {
 }
 
 void closeJobHandle (JobHandle job) {
-    // TODO check no memory leaks occur
+    /* make sure no job components are deleted before job is done */
     waitForJob (job);
+
     auto *jc = (JobContext *) job;
     delete[] jc->threads;
     for (int i = 0; i < jc->multiThreadLevel; i++) {
@@ -419,6 +406,7 @@ void closeJobHandle (JobHandle job) {
     }
     delete[] jc->contexts;
     pthread_mutex_destroy (jc->mutex);
+    delete jc->mutex;
     delete jc->barrier;
     delete[] jc->isWorkerWaiting;
     delete jc->processed;
