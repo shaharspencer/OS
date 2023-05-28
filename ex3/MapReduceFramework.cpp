@@ -98,11 +98,17 @@ void handleSystemError (const char *errorMsg) {
 /*****************************************************************************/
 
 void defineIntermediateVector (ThreadContext *tc) {
-    auto *intermediateVec = new(std::nothrow) IntermediateVec ();
-    if (intermediateVec == nullptr) {
+    printf("allocating intermidiate vector for thread %d\n", tc->threadID);
+    try{
+        auto *intermediateVec = new IntermediateVec ();
+        tc->intermediateVec = intermediateVec;
+    }
+    catch (const std::bad_alloc& b)
+    {
         handleSystemError ("intermediate vector memory allocation failed.");
     }
-    tc->intermediateVec = intermediateVec;
+
+
 }
 
 void initMap (JobContext *jc) {
@@ -170,20 +176,30 @@ void initShuffle (JobContext *jc) {
 
 void shuffle (JobContext *jc) {
     lockMutex (jc->mutex);
-    auto *shuffledOutput = new(std::nothrow) std::vector<IntermediateVec> ();
-    if (!shuffledOutput) {
+    std::vector<IntermediateVec> *shuffledOutput;
+    printf("defining shuffledoutput vector");
+    try{
+        shuffledOutput = new std::vector<IntermediateVec> ();
+    }
+    catch (std::bad_alloc& b){
         handleSystemError ("memory allocation for shuffledVector failed.");
     }
+
     while (true) {
         /* get current max element */
         IntermediatePair maxElement = getMaxElement (jc);
         /* if there is no max element, we are finished */
         if (!maxElement.first) { break; }
         /* create vector of elements that are the same as max element */
-        auto *newIntermediateVector = new(std::nothrow) IntermediateVec( );
-        if (!newIntermediateVector) {
+        IntermediateVec * newIntermediateVector;
+        try{
+            newIntermediateVector = new IntermediateVec( );
+        }
+        catch (std::bad_alloc& b){
             handleSystemError ("memory allocation for new IntermediateVector failed.");
         }
+
+
         for (int i = 0; i < jc->multiThreadLevel; i++) {
             /*  while this vector has more elements and the
              * last element in this vector has max value */
@@ -312,33 +328,44 @@ void *worker (void *arg) {
 JobHandle startMapReduceJob(const MapReduceClient &client,
                             const InputVec &inputVec, OutputVec &outputVec,
                             int multiThreadLevel) {
+    JobContext* jobContext;
+    pthread_t* threads;
+    ThreadContext * contexts;
+    pthread_mutex_t * mutex;
+    Barrier* barrier;
+    bool* isWorkerWaiting;
+    std::atomic<unsigned long>* processed;
 
-    auto *jobContext = new(std::nothrow) JobContext ();
-
-    auto *threads = new(std::nothrow) pthread_t[multiThreadLevel];
-    auto *contexts = new(std::nothrow) ThreadContext[multiThreadLevel];
-
-    auto *mutex = new(std::nothrow) pthread_mutex_t (PTHREAD_MUTEX_INITIALIZER);
-    auto *barrier = new(std::nothrow) Barrier (multiThreadLevel);
-    auto *isWorkerWaiting = new(std::nothrow) bool[multiThreadLevel];
-
-    auto *processed = new(std::nothrow) std::atomic<unsigned long> (0);
-
-    if (!jobContext || !threads || !contexts || !mutex ||
-        !barrier || !isWorkerWaiting || !processed) {
+    try{
+        jobContext = new JobContext ();
+        threads = new pthread_t[multiThreadLevel];
+        contexts = new ThreadContext[multiThreadLevel];
+        mutex = new  pthread_mutex_t (PTHREAD_MUTEX_INITIALIZER);
+        barrier = new Barrier (multiThreadLevel);
+        isWorkerWaiting = new bool[multiThreadLevel];
+        processed = new std::atomic<unsigned long> (0);
+    }
+    catch (const std::bad_alloc& b){
         handleSystemError ("failed to allocate memory for jobContext "
                            "or one of its components.");
     }
+
+
     *jobContext = (JobContext) {&client, &inputVec, &outputVec, multiThreadLevel,
                                 threads, contexts, mutex, barrier,
                                 false, isWorkerWaiting,
                                 UNDEFINED_STAGE, 0, processed, nullptr};
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        auto *threadContext = new(std::nothrow) ThreadContext ();
-        if (!threadContext) {
+        ThreadContext * threadContext;
+        try{
+            threadContext = new ThreadContext ();
+        }
+        catch (const std::bad_alloc& b){
             handleSystemError ("failed to allocate memory for ThreadContext.");
         }
+
+
         *threadContext = (ThreadContext) {i, nullptr, jobContext};
         contexts[i] = *threadContext;
         isWorkerWaiting[i] = false;
