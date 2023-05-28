@@ -91,8 +91,7 @@ void unlockMutex (pthread_mutex_t *mtx) {
 }
 
 void handleSystemError (const char *errorMsg) {
-    fprintf (stderr, "%s %s\n", SYSTEM_FAILURE_MESSAGE, errorMsg); // TODO only for Mattan tests
-//    std::cout << SYSTEM_FAILURE_MESSAGE << " " << errorMsg << std::endl;
+    fprintf (stderr, "%s %s\n", SYSTEM_FAILURE_MESSAGE, errorMsg); // TODO stderr only for Mattan tests
     exit (SYSTEM_FAILURE_EXIT);
 }
 
@@ -107,6 +106,7 @@ void defineIntermediateVector (ThreadContext *tc) {
 }
 
 void initMap (JobContext *jc) {
+    lockMutex (jc->mutex);
     /* currently stage is UNDEFINED, change it to MAP */
     jc->stage = MAP_STAGE;
     /* set total to number of InputPairs,
@@ -114,7 +114,7 @@ void initMap (JobContext *jc) {
     jc->total = jc->inputVec->size();
     /* nullify number of mapped InputPairs */
     (*(jc->processed)) = 0;
-//    printf ("processed updated to %u\n", jc->processed->load());
+    unlockMutex (jc->mutex);
 }
 
 void workerMap (ThreadContext *tc) {
@@ -124,19 +124,19 @@ void workerMap (ThreadContext *tc) {
     /* as long as there are still InputPairs to map, do so */
     while (tc->jobContext->processed->load() < total) {
         lockMutex (tc->jobContext->mutex);
-//        printf ("processed %u out of %u hence continues\n", tc->jobContext->processed->load(), *(tc->jobContext->total));
         K1 *key = tc->jobContext->inputVec->at(tc->jobContext->processed->load()).first;
         V1 *value = tc->jobContext->inputVec->at(tc->jobContext->processed->load()).second;
         (*(tc->jobContext->processed))++;
         unlockMutex (tc->jobContext->mutex);
         tc->jobContext->client->map (key, value, tc);
     }
-//    printf ("finished map in thread %d\n", tc->threadID);
 }
 
 void emit2 (K2 *key, V2 *value, void *context) {
-    ThreadContext *tc = (ThreadContext *) context;
+    auto *tc = (ThreadContext *) context;
+//    lockMutex (tc->jobContext->mutex);
     tc->intermediateVec->push_back ({key, value});
+//    unlockMutex (tc->jobContext->mutex);
 }
 
 /*****************************************************************************/
@@ -154,6 +154,7 @@ bool compare (IntermediatePair p1, IntermediatePair p2) {
 /*****************************************************************************/
 
 void initShuffle (JobContext *jc) {
+    lockMutex (jc->mutex);
     /* currently stage is MAP, change it to SHUFFLE */
     jc->stage = SHUFFLE_STAGE;
     unsigned long newTotal = 0;
@@ -164,9 +165,11 @@ void initShuffle (JobContext *jc) {
     /* total number of IntermediatePairs to shuffle is the same,
      * hence only need to nullify number of IntermediatePairs to shuffle */
     (*(jc->processed)) = 0;
+    unlockMutex (jc->mutex);
 }
 
 void shuffle (JobContext *jc) {
+    lockMutex (jc->mutex);
     auto *shuffledOutput = new(std::nothrow) std::vector<IntermediateVec> ();
     if (!shuffledOutput) {
         handleSystemError ("memory allocation for shuffledVector failed.");
@@ -197,6 +200,7 @@ void shuffle (JobContext *jc) {
         shuffledOutput->push_back (*newIntermediateVector);
     }
     jc->shuffledOutput = shuffledOutput;
+    unlockMutex (jc->mutex);
 }
 
 IntermediatePair getMaxElement (JobContext *jc) {
@@ -216,15 +220,16 @@ IntermediatePair getMaxElement (JobContext *jc) {
 /*****************************************************************************/
 
 void initReduce (JobContext *jc) {
+    lockMutex (jc->mutex);
     /* currently stage is SHUFFLE, change it to REDUCE */
     jc->stage = REDUCE_STAGE;
     jc->total = jc->shuffledOutput->size();
     /* total number of IntermediatePairs to reduce remains the same,
      * hence only need to nullify number of IntermediatePairs to reduce */
     (*(jc->processed)) = 0;
+    unlockMutex (jc->mutex);
 }
 
-// TODO this is where we stopped yesterday
 void workerReduce (ThreadContext *tc) {
     lockMutex (tc->jobContext->mutex);
     auto total = tc->jobContext->total;
@@ -240,15 +245,15 @@ void workerReduce (ThreadContext *tc) {
         /* reduce chosen IntermediateVec */
         tc->jobContext->client->reduce(&intermediateVec, tc);
         (*(tc->jobContext->processed))++;
-
         unlockMutex (tc->jobContext->mutex);
     }
-//    printf("finished reduce\n");
 }
 
 void emit3 (K3 *key, V3 *value, void *context) {
-    ThreadContext *tc = (ThreadContext *) context;
+    auto *tc = (ThreadContext *) context;
+//    lockMutex (tc->jobContext->mutex);
     tc->jobContext->outputVec->push_back ({key, value});
+//    unlockMutex (tc->jobContext->mutex);
 }
 
 /*****************************************************************************/
@@ -346,12 +351,10 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
         }
     }
 
+    printf ("Created job!\n");
     return static_cast<JobHandle> (jobContext);
 }
 
-// TODO this is wrong?
-// TODO all threads reach here(?) so first one to get needs to prevent all others
-// TODO could be done with shared bool
 void waitForJob (JobHandle job) {
     auto *jc = (JobContext *) job;
     if (!jc->isJobWaiting) {
@@ -382,7 +385,7 @@ void getJobState (JobHandle jc, JobState *state) {
 void closeJobHandle (JobHandle job) {
     // TODO check no memory leaks occur
     waitForJob (job);
-    JobContext *jc = (JobContext *) job;
+    auto *jc = (JobContext *) job;
     delete[] jc->threads;
     for (int i = 0; i < jc->multiThreadLevel; i++) {
         delete jc->contexts[i].intermediateVec;
