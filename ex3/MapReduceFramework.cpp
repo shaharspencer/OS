@@ -99,7 +99,7 @@ void handleSystemError (const char *errorMsg) {
 /*****************************************************************************/
 
 void defineIntermediateVector (ThreadContext *tc) {
-    auto *intermediateVec = new IntermediateVec ();
+    auto *intermediateVec = new(std::nothrow) IntermediateVec ();
     if (intermediateVec == nullptr) {
         handleSystemError ("intermediate vector memory allocation failed.");
     }
@@ -167,7 +167,7 @@ void initShuffle (JobContext *jc) {
 }
 
 void shuffle (JobContext *jc) {
-    auto *shuffledOutput = new std::vector<IntermediateVec> ();
+    auto *shuffledOutput = new(std::nothrow) std::vector<IntermediateVec> ();
     if (!shuffledOutput) {
         handleSystemError ("memory allocation for shuffledVector failed.");
     }
@@ -177,7 +177,7 @@ void shuffle (JobContext *jc) {
         /* if there is no max element, we are finished */
         if (!maxElement.first) { break; }
         /* create vector of elements that are the same as max element */
-        auto *newIntermediateVector = new IntermediateVec( );
+        auto *newIntermediateVector = new(std::nothrow) IntermediateVec( );
         if (!newIntermediateVector) {
             handleSystemError ("memory allocation for new IntermediateVector failed.");
         }
@@ -308,16 +308,16 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                             const InputVec &inputVec, OutputVec &outputVec,
                             int multiThreadLevel) {
 
-    auto *jobContext = new JobContext ();
+    auto *jobContext = new(std::nothrow) JobContext ();
 
-    auto *threads = new pthread_t[multiThreadLevel];
-    auto *contexts = new ThreadContext[multiThreadLevel];
+    auto *threads = new(std::nothrow) pthread_t[multiThreadLevel];
+    auto *contexts = new(std::nothrow) ThreadContext[multiThreadLevel];
 
-    auto *mutex = new pthread_mutex_t (PTHREAD_MUTEX_INITIALIZER);
-    auto *barrier = new Barrier (multiThreadLevel);
-    auto *isWorkerWaiting = new bool[multiThreadLevel];
+    auto *mutex = new(std::nothrow) pthread_mutex_t (PTHREAD_MUTEX_INITIALIZER);
+    auto *barrier = new(std::nothrow) Barrier (multiThreadLevel);
+    auto *isWorkerWaiting = new(std::nothrow) bool[multiThreadLevel];
 
-    auto *processed = new std::atomic<unsigned long> (0);
+    auto *processed = new(std::nothrow) std::atomic<unsigned long> (0);
 
     if (!jobContext || !threads || !contexts || !mutex ||
         !barrier || !isWorkerWaiting || !processed) {
@@ -330,7 +330,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                                 UNDEFINED_STAGE, 0, processed, nullptr};
 
     for (int i = 0; i < multiThreadLevel; i++) {
-        auto *threadContext = new ThreadContext ();
+        auto *threadContext = new(std::nothrow) ThreadContext ();
         if (!threadContext) {
             handleSystemError ("failed to allocate memory for ThreadContext.");
         }
