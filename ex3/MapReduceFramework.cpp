@@ -61,7 +61,6 @@ void emit2(K2 *key, V2 *value, void *context) {
 void emit3(K3 *key, V3 *value, void *context) {
     ThreadContext *tc = (ThreadContext *) context;
     tc->outputVec->push_back({key, value});
-
 }
 
 JobHandle startMapReduceJob(const MapReduceClient &client,
@@ -253,7 +252,10 @@ void worker(void *arg) {
 
 
 void waitForJob(JobHandle job) {
-    // TODO use pthread_join here
+    JobContext *jc = (JobContext *) job;
+    for (int i = 0; i < jc->multiThreadLevel; i++) {
+
+    }
 }
 
 void getJobState(JobHandle job, JobState *state) {
