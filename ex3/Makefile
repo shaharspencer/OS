@@ -1,6 +1,6 @@
 CXX = g++
 
-SRCS = *.cpp
+SRCS = Barrier.h Barrier.cpp MapReduceFramework.cpp
 OBJS = $(SRCS:.cpp=.o)
 
 INCS = -I.
@@ -12,18 +12,19 @@ TARGETS = $(LIB)
 TAR = tar
 TARFLAGS = -cvf
 TARNAME = ex3.tar
-TARSRCS = Barrier.h Barrier.cpp MapReduceFramework.cpp Makefile README
+TARSRCS = $(SRCS) Makefile README
 
 all: $(TARGETS)
 
 $(TARGETS): $(OBJS)
 	ar rcs $@ $(OBJS)
+	ranlib $@
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -rf *.o $(LIB)
+	rm $(TARGETS) $(LIB) $(OBJS) *~ *core
 
 depend:
 	makedepend -- $(CXXFLAGS) -- $(SRCS)
