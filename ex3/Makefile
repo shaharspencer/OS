@@ -1,17 +1,32 @@
 CXX = g++
-CXXFLAGS = -std=c++11 -Wall -Werror -Wextra -Wvla -g -I. -I..
 
-all: libMapReduceFramework.a
+SRCS = *.cpp
+OBJS = $(SRCS:.cpp=.o)
 
-libMapReduceFramework.a: MapReduceFramework.o Barrier.o
+INCS = -I.
+CXXFLAGS = -Wall -Werror -Wextra -Wvla -std=c++11 -g -pthread $(INCS)
+
+LIB = libMapReduceFramework.a
+TARGETS = $(LIB)
+
+TAR = tar
+TARFLAGS = -cvf
+TARNAME = ex3.tar
+TARSRCS = Barrier.h Barrier.cpp MapReduceFramework.cpp Makefile README
+
+all: $(TARGETS)
+
+$(TARGETS): $(OBJS)
 	ar rcs $@ $(OBJS)
-	ranlib $@
 
-MapReduceFramework.o: MapReduceFramework.h MapReduceClient.h Barrier.h MapReduceFramework.cpp
-	$(CXX) $(CXXFLAGS) MapReduceFramework.cpp -c -o MapReduceFramework.o
-
-Barrier.o: Barrier.h Barrier.cpp
-	$(CXX) $(CXXFLAGS) Barrier.cpp -c -o Barrier.o
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o *.a
+	rm -rf *.o $(LIB)
+
+depend:
+	makedepend -- $(CXXFLAGS) -- $(SRCS)
+
+tar:
+	$(TAR) $(TARFLAGS) $(TARNAME) $(TARSRCS)
