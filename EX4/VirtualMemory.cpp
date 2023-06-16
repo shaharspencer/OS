@@ -8,19 +8,19 @@
 //
 //A frame containing an empty table – where all rows are 0. We don’t have to evict it, but we do have
 //        to remove the reference to this table from its parent.
-bool isEmptyTable (uint64_t frameIndex) {
+bool isEmptyTable(uint64_t frameIndex) {
     word_t value = 0;
     for (int offset = 0; offset < PAGE_SIZE; offset++) {
-        PMread (frameIndex * PAGE_SIZE + offset, &value);
+        PMread(frameIndex * PAGE_SIZE + offset, &value);
         if (value) { return value; }
     }
     return 0;
 }
 
-bool isUnusedTable(uint64_t frameIndex){
+bool isUnusedTable(uint64_t frameIndex) {
     word_t value = 0;
     for (int offset = 0; offset < PAGE_SIZE; offset++) {
-        PMread (frameIndex * PAGE_SIZE + offset, &value);
+        PMread(frameIndex * PAGE_SIZE + offset, &value);
         if (value) { return value; }
     }
     return 0;
@@ -29,28 +29,28 @@ bool isUnusedTable(uint64_t frameIndex){
 typedef bool (*conditionFunc)(uint64_t);
 
 
-void findUnusedTableHelper (int level, word_t frameIndex, word_t *result, int* maxIndexVisited) {
-    if (level == TABLES_DEPTH || ) {
+void findUnusedTableHelper(int level, word_t frameIndex, word_t *result, int *maxIndexVisited) {
+    if (level == TABLES_DEPTH ||) {
         return;
     }
     bool flag = false;
     word_t value = 0;
     // check if we have children
     for (int offset = 0; offset < PAGE_SIZE; offset++) {
-        PMread (frameIndex * PAGE_SIZE + offset, &value);
+        PMread(frameIndex * PAGE_SIZE + offset, &value);
         // if we have found a child, explore that child
         if (value) {
             // update that we have indeed found some child
             flag = true;
             // explore child
-            findUnusedTableHelper (++level, value, result, maxIndexVisited);
+            findUnusedTableHelper(++level, value, result, maxIndexVisited);
             // if child returned some empty child of its own return
             if (*result) { return; }
         }
     }
 
     // if we found no children
-    if (!flag){
+    if (!flag) {
         *result = frameIndex;
         return;
     }
@@ -58,7 +58,7 @@ void findUnusedTableHelper (int level, word_t frameIndex, word_t *result, int* m
 }
 
 
-void findEmptyTableHelper (int level, word_t frameIndex, word_t *result) {
+void findEmptyTableHelper(int level, word_t frameIndex, word_t *result) {
     if (level == TABLES_DEPTH) {
         return;
     }
@@ -66,25 +66,26 @@ void findEmptyTableHelper (int level, word_t frameIndex, word_t *result) {
     word_t value = 0;
     // check if we have children
     for (int offset = 0; offset < PAGE_SIZE; offset++) {
-        PMread (frameIndex * PAGE_SIZE + offset, &value);
+        PMread(frameIndex * PAGE_SIZE + offset, &value);
         // if we have found a child, explore that child
         if (value) {
             // update that we have indeed found some child
             flag = true;
             // explore child
-            findEmptyTableHelper (++level, value, result);
+            findEmptyTableHelper(++level, value, result);
             // if child returned some empty child of its own return
             if (*result) { return; }
         }
     }
 
     // if we found no children
-    if (!flag){
+    if (!flag) {
         *result = frameIndex;
         return;
     }
 
 }
+
 /*
  * do DFS to find empty table
  * if we find return the address
@@ -114,40 +115,48 @@ word_t findEmptyTable() {
 //        out before we use the frame, and we also have to remove the reference to this page from its parent
 //table.
 
-void VMinitialize(){
-    for (int i = 0; i < PAGE_SIZE; i++){
+void VMinitialize() {
+    for (int i = 0; i < PAGE_SIZE; i++) {
         PMwrite(i, 0);
     }
 }
 
-uint64_t getMask (int level) {
+uint64_t getOffsetMask(int level) {
     uint64_t mask = (1LL << OFFSET_WIDTH) - 1;
     for (int i = 0; i < (TABLES_DEPTH - level); i++) { mask << OFFSET_WIDTH; }
     return mask;
 }
 
-uint64_t virtualToPhysical (uint64_t virtualAddress) {
-    word_t frameIndex = 0;
+uint64_t virtualToPhysical(uint64_t virtualAddress) {
+    word_t frameIndex = 0, nextFrameIndex = 0;
+    uint64_t offset = 0;
     for (int level = 0; level < TABLES_DEPTH; level++) {
-        uint64_t offset = virtualAddress & getMask (level);
-        PMread (frameIndex * PAGE_SIZE + offset, &frameIndex);
-        if (frameIndex == 0) {
+        /* get relevant bits from virtual address */
+        offset = virtualAddress & getOffsetMask(level);
+        /* shift bits to the right to get actual offset */
+        offset = offset >> (VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH * (level + 2));
+        /* get next frame index */
+        PMread(frameIndex * PAGE_SIZE + offset, &nextFrameIndex);
+        /* if next frame index exceeds available RAM, prepare for tree mutation */
+        if (nextFrameIndex >= NUM_FRAMES) {
+            // TODO nullify current frame - why?
+            nextFrameIndex = 0;
+            // TODO max frame = curr frame - why?
+        }
+        if (nextFrameIndex == 0) {
             // TODO do stuff
             // Find an unused frame or evict a page from some frame. Suppose this frame number is f1
             //Write 0 in all of its contents (only necessary if next layer is a table)
             //PMwrite(0 + 5, f1)
             //addr1 = f1
+        } else {
+            frameIndex = nextFrameIndex;
         }
     }
-    if (frameIndex == 0) {
-        //Find an unused frame or evict a page from some frame. Suppose this frame number is f2.
-
-        //Make sure you are not evicting f1 by accident
-        //Restore the page we are looking for to frame f2 (only necessary pointing to a page)
-        //PMwrite(addr1 * PAGE_SIZE + 1, f2)
-        //addr2 = f2
-    }
-    return frameIndex;
+    uint64_t restoredPageIndex = virtualAddress & ~OFFSET_WIDTH;
+    restoredPageIndex = restoredPageIndex >> OFFSET_WIDTH;
+    PMrestore(frameIndex, restoredPageIndex)
+    return (frameIndex * PAGE_SIZE + offset);
 }
 
 /* Reads a word from the given virtual address
@@ -157,16 +166,13 @@ uint64_t virtualToPhysical (uint64_t virtualAddress) {
  * returns 0 on failure (if the address cannot be mapped to a physical
  * address for any reason)
  */
-int VMread(uint64_t virtualAddress, word_t* value) {
+int VMread(uint64_t virtualAddress, word_t *value) {
     // if we got an illegal address
-    if (virtualAddress >= VIRTUAL_MEMORY_SIZE){
-        return 0;
-    }
+    if (virtualAddress >= VIRTUAL_MEMORY_SIZE) { return 0; }
     // convert virtual to physical address
-    uint64_t physicalAddress = virtualToPhysical (virtualAddress);
-    // TODO check errors
+    uint64_t physicalAddress = virtualToPhysical(virtualAddress);
     // finally read the content of the address into value
-    PMread (physicalAddress, value);
+    PMread(physicalAddress, value);
     return 1;
 }
 
@@ -177,7 +183,9 @@ int VMread(uint64_t virtualAddress, word_t* value) {
  * address for any reason)
  */
 int VMwrite(uint64_t virtualAddress, word_t value) {
-    uint64_t physicalAddress = virtualToPhysical (virtualAddress);
+    /* same as VMread, except calls PMwrite instead of PMread */
+    if (virtualAddress >= VIRTUAL_MEMORY_SIZE) { return 0; }
+    uint64_t physicalAddress = virtualToPhysical(virtualAddress);
     PMwrite(physicalAddress, value);
     return 1;
 }
