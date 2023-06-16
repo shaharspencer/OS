@@ -3,7 +3,16 @@
 
 //TODO arrange function declarations
 
-
+void trimFrame(word_t parentFrame, word_t childFrame) {
+    word_t value;
+    for (int offset = 0; offset < PAGE_SIZE; offset++) {
+        PMread(parentFrame * PAGE_SIZE + offset, &value);
+        if (value == childFrame) {
+            PMwrite(parentFrame * PAGE_SIZE + offset, 0);
+            return;
+        }
+    }
+}
 
 //
 //A frame containing an empty table – where all rows are 0. We don’t have to evict it, but we do have
@@ -17,73 +26,74 @@ bool isEmptyTable(uint64_t frameIndex) {
     return 0;
 }
 
-bool isUnusedTable(uint64_t frameIndex) {
-    word_t value = 0;
-    for (int offset = 0; offset < PAGE_SIZE; offset++) {
-        PMread(frameIndex * PAGE_SIZE + offset, &value);
-        if (value) { return value; }
-    }
-    return 0;
-}
+//bool isUnusedTable(uint64_t frameIndex) {
+//    word_t value = 0;
+//    for (int offset = 0; offset < PAGE_SIZE; offset++) {
+//        PMread(frameIndex * PAGE_SIZE + offset, &value);
+//        if (value) { return value; }
+//    }
+//    return 0;
+//}
 
-typedef bool (*conditionFunc)(uint64_t);
+//void findUnusedTableHelper(int level, word_t frameIndex, word_t *result, int *maxIndexVisited) {
+//    if (level == TABLES_DEPTH ||) {
+//        return;
+//    }
+//    bool flag = false;
+//    word_t value = 0;
+//    // check if we have children
+//    for (int offset = 0; offset < PAGE_SIZE; offset++) {
+//        PMread(frameIndex * PAGE_SIZE + offset, &value);
+//        // if we have found a child, explore that child
+//        if (value) {
+//            // update that we have indeed found some child
+//            flag = true;
+//            // explore child
+//            findUnusedTableHelper(++level, value, result, maxIndexVisited);
+//            // if child returned some empty child of its own return
+//            if (*result) { return; }
+//        }
+//    }
+//
+//    // if we found no children
+//    if (!flag) {
+//        *result = frameIndex;
+//        return;
+//    }
+//
+//}
 
 
-void findUnusedTableHelper(int level, word_t frameIndex, word_t *result, int *maxIndexVisited) {
-    if (level == TABLES_DEPTH ||) {
-        return;
-    }
+void findEmptyTableHelper(int level, word_t prevFrameIndex, word_t frameIndex,
+                          word_t *parentFrameIndex, word_t *result) {
+    /* if we've reached a leaf, values refer to VM hence return */
+    if (level == TABLES_DEPTH) { return; }
+    /* assume current frame is empty i.e. has no children.
+     * if we figure otherwise this flag will change to true
+     * and nextFrameIndex will update to child */
     bool flag = false;
-    word_t value = 0;
-    // check if we have children
+    word_t nextFrameIndex = 0;
+    /* iteratively look for children */
     for (int offset = 0; offset < PAGE_SIZE; offset++) {
-        PMread(frameIndex * PAGE_SIZE + offset, &value);
-        // if we have found a child, explore that child
-        if (value) {
-            // update that we have indeed found some child
+        PMread(frameIndex * PAGE_SIZE + offset, &nextFrameIndex);
+        /* if we have found a child, call recursively with that child as frameIndex */
+        if (nextFrameIndex) {
+            /* update that we have indeed found a child */
             flag = true;
-            // explore child
-            findUnusedTableHelper(++level, value, result, maxIndexVisited);
-            // if child returned some empty child of its own return
+            /* explore that child */
+            findEmptyTableHelper(++level, prevFrameIndex, nextFrameIndex,
+                                 &frameIndex, result);
+            /* if child has returned some empty child of its own,
+             * prevent traversing other children by returning */
             if (*result) { return; }
         }
     }
-
-    // if we found no children
-    if (!flag) {
+    /* if we found no children and only if frame isn't last frame mutated */
+    if (!flag && frameIndex != prevFrameIndex) {
+        /* trim frame from its parent */
+        // TODO call trim func
         *result = frameIndex;
-        return;
     }
-
-}
-
-
-void findEmptyTableHelper(int level, word_t frameIndex, word_t *result) {
-    if (level == TABLES_DEPTH) {
-        return;
-    }
-    bool flag = false;
-    word_t value = 0;
-    // check if we have children
-    for (int offset = 0; offset < PAGE_SIZE; offset++) {
-        PMread(frameIndex * PAGE_SIZE + offset, &value);
-        // if we have found a child, explore that child
-        if (value) {
-            // update that we have indeed found some child
-            flag = true;
-            // explore child
-            findEmptyTableHelper(++level, value, result);
-            // if child returned some empty child of its own return
-            if (*result) { return; }
-        }
-    }
-
-    // if we found no children
-    if (!flag) {
-        *result = frameIndex;
-        return;
-    }
-
 }
 
 /*
@@ -93,7 +103,7 @@ void findEmptyTableHelper(int level, word_t frameIndex, word_t *result) {
  */
 word_t findEmptyTable() {
     // start at root
-    word_t emptyTable = 0;
+    word_t emptyTable = -1;
     findEmptyTableHelper(0, 0, &emptyTable);
     return emptyTable;
 }
@@ -127,9 +137,26 @@ uint64_t getOffsetMask(int level) {
     return mask;
 }
 
+void nullifyFrame(uint64_t frameIndex) {
+    for (int offset = 0; offset < PAGE_SIZE; offset++) {
+        PMwrite(frameIndex * PAGE_SIZE + offset, 0);
+    }
+}
+
+void prepareForTreeMutation(word_t *frameIndex, word_t *nextFrameIndex,
+                            uint64_t *maxUsedFrameIndex) {
+    nullifyFrame(*frameIndex);
+    *nextFrameIndex = 0;
+    *maxUsedFrameIndex = *frameIndex;
+}
+
+void mutateTree() {
+    uint64_t parentFrameIndex = 0;
+}
+
 uint64_t virtualToPhysical(uint64_t virtualAddress) {
-    word_t frameIndex = 0, nextFrameIndex = 0;
-    uint64_t offset = 0;
+    word_t frameIndex = 0, nextFrameIndex = 0, prevFrameIndex = 0;
+    uint64_t offset = 0, maxUsedFrameIndex = 0;
     for (int level = 0; level < TABLES_DEPTH; level++) {
         /* get relevant bits from virtual address */
         offset = virtualAddress & getOffsetMask(level);
@@ -139,23 +166,20 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
         PMread(frameIndex * PAGE_SIZE + offset, &nextFrameIndex);
         /* if next frame index exceeds available RAM, prepare for tree mutation */
         if (nextFrameIndex >= NUM_FRAMES) {
-            // TODO nullify current frame - why?
-            nextFrameIndex = 0;
-            // TODO max frame = curr frame - why?
+            prepareForTreeMutation(&frameIndex, &nextFrameIndex, &maxUsedFrameIndex);
         }
+        /* if tree mutation is needed, execute it, otherwise continue */
         if (nextFrameIndex == 0) {
-            // TODO do stuff
-            // Find an unused frame or evict a page from some frame. Suppose this frame number is f1
-            //Write 0 in all of its contents (only necessary if next layer is a table)
-            //PMwrite(0 + 5, f1)
-            //addr1 = f1
+            mutateTree(); // TODO what should be sent
         } else {
             frameIndex = nextFrameIndex;
         }
+        prevFrameIndex = frameIndex;
     }
+    /* restore called page to RAM */
     uint64_t restoredPageIndex = virtualAddress & ~OFFSET_WIDTH;
     restoredPageIndex = restoredPageIndex >> OFFSET_WIDTH;
-    PMrestore(frameIndex, restoredPageIndex)
+    PMrestore(prevFrameIndex, restoredPageIndex)
     return (frameIndex * PAGE_SIZE + offset);
 }
 
