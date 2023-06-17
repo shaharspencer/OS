@@ -18,57 +18,6 @@ void trimFrame(word_t parentFrameIndex, word_t childFrameIndex) {
     }
 }
 
-//
-//A frame containing an empty table – where all rows are 0. We don’t have to evict it, but we do have
-//        to remove the reference to this table from its parent.
-// TODO do we use this?
-bool isEmptyTable(uint64_t frameIndex) {
-    word_t value = 0;
-    for (int offset = 0; offset < PAGE_SIZE; offset++) {
-        PMread(frameIndex * PAGE_SIZE + offset, &value);
-        if (value) { return value; }
-    }
-    return 0;
-}
-
-//bool isUnusedTable(uint64_t frameIndex) {
-//    word_t value = 0;
-//    for (int offset = 0; offset < PAGE_SIZE; offset++) {
-//        PMread(frameIndex * PAGE_SIZE + offset, &value);
-//        if (value) { return value; }
-//    }
-//    return 0;
-//}
-
-//void findUnusedTableHelper(int level, word_t frameIndex, word_t *result, int *maxIndexVisited) {
-//    if (level == TABLES_DEPTH ||) {
-//        return;
-//    }
-//    bool flag = false;
-//    word_t value = 0;
-//    // check if we have children
-//    for (int offset = 0; offset < PAGE_SIZE; offset++) {
-//        PMread(frameIndex * PAGE_SIZE + offset, &value);
-//        // if we have found a child, explore that child
-//        if (value) {
-//            // update that we have indeed found some child
-//            flag = true;
-//            // explore child
-//            findUnusedTableHelper(++level, value, result, maxIndexVisited);
-//            // if child returned some empty child of its own return
-//            if (*result) { return; }
-//        }
-//    }
-//
-//    // if we found no children
-//    if (!flag) {
-//        *result = frameIndex;
-//        return;
-//    }
-//
-//}
-
-
 void findEmptyTableHelper(int level, word_t prevFrameIndex, word_t frameIndex,
                           word_t *parentFrameIndex, word_t *result) {
     /* if we've reached a leaf, values refer to VM hence return */
@@ -96,7 +45,7 @@ void findEmptyTableHelper(int level, word_t prevFrameIndex, word_t frameIndex,
     /* if we found no children and only if frame isn't last frame mutated */
     if (!flag && frameIndex != prevFrameIndex) {
         /* trim frame from its parent */
-        trimFrame(*parentFrameIndex, frameIndex)
+        trimFrame(*parentFrameIndex, frameIndex);
         * result = frameIndex;
     }
 }
@@ -116,7 +65,7 @@ word_t findEmptyTable(word_t prevFrameIndex) {
     return emptyTable;
 }
 
-void findUnusedFrameHelper(int level, word_t frameIndex, uint64_t *maxUsedFrameIndex) {
+void findUnusedFrameHelper(int level, word_t frameIndex, word_t *maxUsedFrameIndex) {
     /* if we've reached a leaf, values refer to VM hence return */
     if (level == TABLES_DEPTH) { return; }
     /* iteratively and recursively look for max used frame index */
@@ -212,7 +161,7 @@ void VMinitialize() {
 
 uint64_t getOffsetMask(int level) {
     uint64_t mask = (1LL << OFFSET_WIDTH) - 1;
-    for (int i = 0; i < (TABLES_DEPTH - level); i++) { mask << OFFSET_WIDTH; }
+    for (int i = 0; i < (TABLES_DEPTH - level); i++) { mask <<= OFFSET_WIDTH; }
     return mask;
 }
 
@@ -246,7 +195,6 @@ void mutateTree(word_t prevFrameIndex, word_t frameIndex, int offset,
     /* if evicted frame isn't a leaf, nullify it */
     if (level != TABLES_DEPTH - 1) { nullifyFrame(frameToEvict); }
     PMwrite(prevFrameIndex * PAGE_SIZE + offset, frameToEvict);
-    return;
 }
 
 uint64_t virtualToPhysical(uint64_t virtualAddress) {
@@ -259,7 +207,7 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
         /* get relevant bits from virtual address */
         offset = virtualAddress & getOffsetMask(level);
         /* shift bits to the right to get actual offset */
-        offset = offset >> (VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH * (level + 2));
+        offset >>= (VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH * (level + 2));
         /* get next frame index */
         PMread(frameIndex * PAGE_SIZE + offset, &nextFrameIndex);
         /* if next frame index exceeds available RAM, prepare for tree mutation */
@@ -275,7 +223,7 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
         prevFrameIndex = frameIndex;
     }
     /* restore called page to RAM */
-    PMrestore(prevFrameIndex, restoredPageIndex)
+    PMrestore(prevFrameIndex, restoredPageIndex);
     return (frameIndex * PAGE_SIZE + offset);
 }
 
