@@ -2,6 +2,8 @@
 #include "PhysicalMemory.h"
 
 //TODO arrange function declarations!!
+// TODO add const where relevant
+// TODO make sure types are consistent
 
 void trimFrame(word_t parentFrameIndex, word_t childFrameIndex) {
     word_t value;
@@ -138,7 +140,69 @@ word_t findUnusedFrame(word_t frameIndex) {
     return maxUsedFrameIndex;
 }
 
-word_t findFrameToEvict(/* TODO args */) {}
+int abs(const int num) {
+    int res = (num >= 0) ? num : (-num);
+    return res;
+}
+
+int cyclicDistance(const int pageIndex, const int otherPageIndex) {
+    int dist1 = abs(pageIndex - otherPageIndex);
+    int dist2 = NUM_PAGES - dist1;
+    int res = (dist1 <= dist2) ? dist1 : dist2;
+    return res;
+}
+
+// prevF = prev_f; frameI = cur_frame; frameToE = max_cyc_frame;
+// pageToR = page_swap_in; parentFrameI = parent_f; pageN = cur_page_n;
+// pageToE = max_cyc_page_n;
+
+void findFrameToEvictHelper(int level, word_t prevFrameIndex, word_t frameIndex,
+                            word_t* frameToEvict, word_t* parentFrameIndex,
+                            int pageNumber, const int pageToRestore, int* pageToEvict, int bits) {
+    /* upon reaching a leaf, compare its cyclic distance to current farthest.
+     * if distance is larger, update accordingly */
+    if (level == TABLES_DEPTH) {
+        /* if no page was selected yet, or if current page's cyclic distance
+         * is larger than previous, select current page */
+        if (*frameToEvict == 0 || (cyclicDistance(pageNumber, pageToRestore) >
+            cyclicDistance(*pageToEvict, pageToRestore))) {
+                *frameToEvict = frameIndex;
+                *pageToEvict = pageNumber;
+                *parentFrameIndex = prevFrameIndex;
+        }
+        return;
+    }
+    /* iteratively and recursively traverse the tree while constructing the page number */
+    word_t nextFrameIndex = 0;
+    for (uint64_t offset = 0; offset < PAGE_SIZE; offset++) {
+        PMread(frameIndex * PAGE_SIZE + offset, &nextFrameIndex);
+        if (nextFrameIndex) {
+            /* construct page number by offset */
+            pageNumber <<= (bits - OFFSET_WIDTH >= OFFSET_WIDTH)
+                    ? OFFSET_WIDTH : (bits - OFFSET_WIDTH);
+            pageNumber += offset;
+            /* continue recursion */
+            findFrameToEvictHelper(++level, frameIndex, nextFrameIndex, frameToEvict,
+                                   parentFrameIndex, pageNumber, pageToRestore, pageToEvict, bits - OFFSET_WIDTH);
+        }
+    }
+}
+
+word_t findFrameToEvict(uint64_t pageToRestore) {
+    /* default values for if we do not find a frame to evict */
+    word_t frameToEvict = 0;
+    int pageToEvict = 0;
+    /* recursively look for the frame to evict by max cyclic distance policy,
+     * starting from the root table 0 */
+    word_t parentFrameIndex = 0;
+    findFrameToEvictHelper(0, 0, 0, &frameToEvict, &parentFrameIndex,
+                           0, pageToRestore, &pageToEvict, VIRTUAL_ADDRESS_WIDTH);
+    /* mutate the tree by results */
+    trimFrame(parentFrameIndex, frameToEvict);
+    /* evict decided page from RAM */
+    PMevict(frameToEvict, pageToEvict);
+    return frameToEvict;
+}
 
 void VMinitialize() {
     for (int i = 0; i < PAGE_SIZE; i++) {
@@ -163,7 +227,8 @@ void prepareForTreeMutation(word_t frameIndex, word_t *nextFrameIndex) {
     *nextFrameIndex = 0;
 }
 
-void mutateTree(word_t prevFrameIndex, word_t frameIndex, int offset) {
+void mutateTree(word_t prevFrameIndex, word_t frameIndex, int offset,
+                uint64_t pageToRestore, int level) {
     /* first look for an empty table. if found, update accordingly */
     word_t emptyTable = findEmptyTable(prevFrameIndex);
     if (emptyTable != -1) {
@@ -177,13 +242,19 @@ void mutateTree(word_t prevFrameIndex, word_t frameIndex, int offset) {
         return;
     }
     /* finally, evict a frame by max cyclic distance policy */
-    word_t frameToEvict = findFrameToEvict(); // TODO args
-    // TODO evict frame, update tree (in function), if not leaf than nullify
+    word_t frameToEvict = findFrameToEvict(pageToRestore);
+    /* if evicted frame isn't a leaf, nullify it */
+    if (level != TABLES_DEPTH - 1) { nullifyFrame(frameToEvict); }
+    PMwrite(prevFrameIndex * PAGE_SIZE + offset, frameToEvict);
+    return;
 }
 
 uint64_t virtualToPhysical(uint64_t virtualAddress) {
     word_t frameIndex = 0, nextFrameIndex = 0, prevFrameIndex = 0;
     uint64_t offset = 0;
+    /* calculate the page number which will be restored to RAM */
+    uint64_t restoredPageIndex = virtualAddress & ~OFFSET_WIDTH;
+    restoredPageIndex = restoredPageIndex >> OFFSET_WIDTH;
     for (int level = 0; level < TABLES_DEPTH; level++) {
         /* get relevant bits from virtual address */
         offset = virtualAddress & getOffsetMask(level);
@@ -197,15 +268,13 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
         }
         /* if tree mutation is needed, execute it, otherwise continue */
         if (nextFrameIndex == 0) {
-            mutateTree(); // TODO what should be sent
+            mutateTree(prevFrameIndex, frameIndex, offset, restoredPageIndex, level);
         } else {
             frameIndex = nextFrameIndex;
         }
         prevFrameIndex = frameIndex;
     }
     /* restore called page to RAM */
-    uint64_t restoredPageIndex = virtualAddress & ~OFFSET_WIDTH;
-    restoredPageIndex = restoredPageIndex >> OFFSET_WIDTH;
     PMrestore(prevFrameIndex, restoredPageIndex)
     return (frameIndex * PAGE_SIZE + offset);
 }
