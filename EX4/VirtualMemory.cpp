@@ -90,7 +90,7 @@ word_t findEmptyTable(word_t prevFrameIndex) {
 
 void findUnusedFrameHelper(int level, word_t frameIndex, word_t *maxUsedFrameIndex) {
     /* if we've reached a leaf, values refer to VM hence return */
-    if (level == TABLES_DEPTH) { return; }
+    if (level == TABLES_DEPTH) { printf("reached leaf\n"); return; }
     /* iteratively and recursively look for max used frame index */
     word_t nextFrameIndex = 0;
     for (int offset = 0; offset < PAGE_SIZE; offset++) {
@@ -107,8 +107,10 @@ void findUnusedFrameHelper(int level, word_t frameIndex, word_t *maxUsedFrameInd
 
 word_t findUnusedFrame(const word_t frameIndex) {
     word_t maxUsedFrameIndex = frameIndex;
+    printf("pre-maxUsed = %d\n", maxUsedFrameIndex);
     /* recursively look for max unused frame index, starting from the root table 0 */
     findUnusedFrameHelper(0, 0, &maxUsedFrameIndex);
+    printf("post-maxUsed = %d\n", maxUsedFrameIndex);
     return maxUsedFrameIndex;
 }
 
@@ -207,6 +209,7 @@ void prepareForTreeMutation(word_t frameIndex, word_t *nextFrameIndex) {
 void mutateTree(word_t prevFrameIndex, word_t* frameIndex, int offset,
                 uint64_t pageToRestore, int level) {
     /* first look for an empty table. if found, update accordingly */
+    printf("looking for empty table\n");
     word_t emptyTable = findEmptyTable(prevFrameIndex);
     if (emptyTable != -1) {
         PMwrite(prevFrameIndex * PAGE_SIZE + offset, emptyTable);
@@ -216,8 +219,10 @@ void mutateTree(word_t prevFrameIndex, word_t* frameIndex, int offset,
         return;
     }
     /* next, look for an unused frame. if found, update accordingly */
+    printf("looking for unused frame\n");
     word_t unusedFrameIndex = findUnusedFrame(*frameIndex) + 1;
     if (unusedFrameIndex < NUM_FRAMES) {
+        printf("prevFrame %d offset %d unusedFrame %d\n", prevFrameIndex, offset, unusedFrameIndex);
         PMwrite(prevFrameIndex * PAGE_SIZE + offset, unusedFrameIndex);
         *frameIndex = unusedFrameIndex;
         printf("found unused frame at %d\n"
@@ -226,6 +231,7 @@ void mutateTree(word_t prevFrameIndex, word_t* frameIndex, int offset,
         return;
     }
     /* finally, evict a frame by max cyclic distance policy */
+    printf("looking for frame to evict\n");
     word_t frameToEvict = findFrameToEvict(pageToRestore);
     /* if evicted frame isn't a leaf, nullify it */
     if (level != TABLES_DEPTH - 1) { nullifyFrame(frameToEvict); }
@@ -240,10 +246,13 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
     /* calculate the page number which will be restored to RAM */
     uint64_t restoredPageIndex = virtualAddress & ~OFFSET_WIDTH;
     restoredPageIndex = restoredPageIndex >> OFFSET_WIDTH;
-    uint64_t pageOffset = virtualAddress & getOffsetMask(TABLES_DEPTH);
+    uint64_t pageOffset = virtualAddress & ((1 << OFFSET_WIDTH) - 1);
     for (int level = 0; level < TABLES_DEPTH; level++) {
         /* get relevant bits from virtual address */
-        int offset = virtualAddress & getOffsetMask(level);
+        int bitcount = VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH;
+        int a = bitcount - OFFSET_WIDTH * (level + 1);
+        int b = bitcount - 1 - OFFSET_WIDTH * (level);
+        int offset = virtualAddress & getOffsetMask(a, b);
         /* shift bits to the right to get actual offset */
         offset >>= (VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH * (level + 2));
         /* get next frame index */
