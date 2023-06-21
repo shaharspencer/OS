@@ -1,0 +1,7 @@
+shaharspencer, n318162971
+Shahar Spencer (208067017), Nadav Elan Eliash (318162971)
+EX: 4
+
+FILES:
+VirtualMemory.cpp -- our implementation of the VM library
+makefile - a makefile to compile the project

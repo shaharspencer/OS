@@ -1,4 +1,4 @@
-#include "VirtualMemory.h"
+#include "../VirtualMemory.h"
 
 #include <cstdio>
 #include <cassert>
