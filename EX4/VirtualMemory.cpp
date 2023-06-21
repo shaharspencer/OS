@@ -182,9 +182,13 @@ void VMinitialize() {
     }
 }
 
-uint64_t getOffsetMask(int level) {
-    uint64_t mask = (1LL << OFFSET_WIDTH) - 1;
-    for (int i = 0; i < (TABLES_DEPTH - level); i++) { mask <<= OFFSET_WIDTH; }
+uint64_t getOffsetMask(int a, int b) {
+    uint64_t mask = 0;
+    for (int i = a; i <= b; i++) {
+        mask |= (1 << i);
+    } // TODO change
+//    uint64_t mask = (1LL << OFFSET_WIDTH) - 1;
+//    for (int i = 0; i < (TABLES_DEPTH - level); i++) { mask <<= OFFSET_WIDTH; }
 //    printf("mask for level %d is %lu\n", level, mask);
     return mask;
 }
@@ -206,6 +210,7 @@ void mutateTree(word_t prevFrameIndex, word_t* frameIndex, int offset,
     word_t emptyTable = findEmptyTable(prevFrameIndex);
     if (emptyTable != -1) {
         PMwrite(prevFrameIndex * PAGE_SIZE + offset, emptyTable);
+        *frameIndex = emptyTable;
         printf("found empty table at %d\nnew tree:\n", emptyTable);
         print_tree(0, 0);
         return;
@@ -214,7 +219,7 @@ void mutateTree(word_t prevFrameIndex, word_t* frameIndex, int offset,
     word_t unusedFrameIndex = findUnusedFrame(*frameIndex) + 1;
     if (unusedFrameIndex < NUM_FRAMES) {
         PMwrite(prevFrameIndex * PAGE_SIZE + offset, unusedFrameIndex);
-        (*frameIndex)++;
+        *frameIndex = unusedFrameIndex;
         printf("found unused frame at %d\n"
                "parent frame is %d offset is %d\nnew tree:\n", unusedFrameIndex, prevFrameIndex, offset);
         print_tree(0, 0);
@@ -225,6 +230,7 @@ void mutateTree(word_t prevFrameIndex, word_t* frameIndex, int offset,
     /* if evicted frame isn't a leaf, nullify it */
     if (level != TABLES_DEPTH - 1) { nullifyFrame(frameToEvict); }
     PMwrite(prevFrameIndex * PAGE_SIZE + offset, frameToEvict);
+    *frameIndex = frameToEvict;
     printf("evicted frame at %d\nnew tree:\n", frameToEvict);
     print_tree(0, 0);
 }
@@ -239,7 +245,7 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
         /* get relevant bits from virtual address */
         int offset = virtualAddress & getOffsetMask(level);
         /* shift bits to the right to get actual offset */
-        offset >>= (VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH * (level + 1));
+        offset >>= (VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH * (level + 2));
         /* get next frame index */
         PMread(frameIndex * PAGE_SIZE + offset, &nextFrameIndex);
         /* if next frame index exceeds available RAM, prepare for tree mutation */
