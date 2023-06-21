@@ -2,8 +2,6 @@
 #include "PhysicalMemory.h"
 
 //TODO arrange function declarations!!
-// TODO add const where relevant
-// TODO make sure types are consistent
 
 //#include <iostream>
 //#include <vector>
