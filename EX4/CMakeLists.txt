@@ -7,9 +7,8 @@ add_executable(test
 #        MemoryConstants.h
         PhysicalMemory.h
         PhysicalMemory.cpp
-        YaaraConstants.h
-        YaaraTest.cpp
+        MemoryConstants.h
+        SimpleTest.cpp
         VirtualMemory.h
-
         VirtualMemory.cpp
         )

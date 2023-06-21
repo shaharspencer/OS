@@ -186,14 +186,9 @@ void VMinitialize() {
     }
 }
 
-uint64_t getOffsetMask(int a, int b) {
-    uint64_t mask = 0;
-    for (int i = a; i <= b; i++) {
-        mask |= (1 << i);
-    } // TODO change
-//    uint64_t mask = (1LL << OFFSET_WIDTH) - 1;
-//    for (int i = 0; i < (TABLES_DEPTH - level); i++) { mask <<= OFFSET_WIDTH; }
-//    printf("mask for [%d,%d] is %lu\n", a, b, mask);
+uint64_t getOffsetMask(int level) {
+    uint64_t mask = (1 << OFFSET_WIDTH) - 1;
+    for (int i = 0; i < (TABLES_DEPTH - level); i++) { mask <<= OFFSET_WIDTH; }
     return mask;
 }
 
@@ -248,17 +243,15 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
     /* calculate the page number which will be restored to RAM */
     uint64_t restoredPageIndex = virtualAddress & ~OFFSET_WIDTH;
     restoredPageIndex = restoredPageIndex >> OFFSET_WIDTH;
-    uint64_t pageOffset = virtualAddress & ((1 << OFFSET_WIDTH) - 1);
 //    printf("Beginning traversing from root\n");
     for (int level = 0; level < TABLES_DEPTH; level++) {
         /* get relevant bits from virtual address */
-        int bitcount = VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH;
-        int a = bitcount - OFFSET_WIDTH * (level + 2);
-        int b = bitcount - 1 - OFFSET_WIDTH * (level);
-        uint64_t mask = getOffsetMask(a, b);
-        uint64_t offset = restoredPageIndex & mask;
+        uint64_t mask = getOffsetMask(level);
+        uint64_t offset = virtualAddress & mask;
         /* shift bits to the right to get actual offset */
-        offset >>= (VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH * (level + 2));
+        for (int i = level; i < TABLES_DEPTH; i++) {
+            offset >>= OFFSET_WIDTH;
+        }
         /* get next frame index */
         PMread(frameIndex * PAGE_SIZE + offset, &nextFrameIndex);
         /* if next frame index exceeds available RAM, prepare for tree mutation */
@@ -278,6 +271,7 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
     /* restore called page to RAM */
     PMrestore(prevFrameIndex, restoredPageIndex);
 //    printf("physical memory address: %d\n", frameIndex);
+    uint64_t pageOffset = virtualAddress & getOffsetMask(TABLES_DEPTH);
     return (frameIndex * PAGE_SIZE + pageOffset);
 }
 
