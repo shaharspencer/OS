@@ -58,7 +58,7 @@ void findEmptyTableHelper(int level, word_t prevFrameIndex, word_t frameIndex,
             /* update that we have indeed found a child */
             flag = true;
             /* explore that child */
-            findEmptyTableHelper(++level, prevFrameIndex, nextFrameIndex,
+            findEmptyTableHelper(level + 1, prevFrameIndex, nextFrameIndex,
                                  &frameIndex, result);
             /* if child has returned some empty child of its own,
              * prevent traversing other children by returning */
@@ -90,7 +90,7 @@ word_t findEmptyTable(word_t prevFrameIndex) {
 
 void findUnusedFrameHelper(int level, word_t frameIndex, word_t *maxUsedFrameIndex) {
     /* if we've reached a leaf, values refer to VM hence return */
-    if (level == TABLES_DEPTH) { printf("reached leaf\n"); return; }
+    if (level == TABLES_DEPTH) { return; }
     /* iteratively and recursively look for max used frame index */
     word_t nextFrameIndex = 0;
     for (int offset = 0; offset < PAGE_SIZE; offset++) {
@@ -100,7 +100,7 @@ void findUnusedFrameHelper(int level, word_t frameIndex, word_t *maxUsedFrameInd
             /* if child's index is higher than current max used frame index, update it */
             if (nextFrameIndex > *maxUsedFrameIndex) { *maxUsedFrameIndex = nextFrameIndex; }
             /* continue recursion */
-            findUnusedFrameHelper(++level, nextFrameIndex, maxUsedFrameIndex);
+            findUnusedFrameHelper(level + 1, nextFrameIndex, maxUsedFrameIndex);
         }
     }
 }
@@ -152,12 +152,12 @@ void findFrameToEvictHelper(int level, word_t prevFrameIndex, word_t frameIndex,
         PMread(frameIndex * PAGE_SIZE + offset, &nextFrameIndex);
         if (nextFrameIndex) {
             /* construct page number by offset */
-            pageNumber <<= (bits - OFFSET_WIDTH >= OFFSET_WIDTH)
-                           ? OFFSET_WIDTH : (bits - OFFSET_WIDTH);
-            pageNumber += offset;
+            int updatedPageNumber = pageNumber << ((bits - OFFSET_WIDTH >= OFFSET_WIDTH)
+                    ? OFFSET_WIDTH : (bits - OFFSET_WIDTH));
+            updatedPageNumber += offset;
             /* continue recursion */
-            findFrameToEvictHelper(++level, frameIndex, nextFrameIndex, frameToEvict,
-                                   parentFrameIndex, pageNumber, pageToRestore, pageToEvict, bits - OFFSET_WIDTH);
+            findFrameToEvictHelper(level + 1, frameIndex, nextFrameIndex, frameToEvict,
+                                   parentFrameIndex, updatedPageNumber, pageToRestore, pageToEvict, bits - OFFSET_WIDTH);
         }
     }
 }
@@ -191,7 +191,7 @@ uint64_t getOffsetMask(int a, int b) {
     } // TODO change
 //    uint64_t mask = (1LL << OFFSET_WIDTH) - 1;
 //    for (int i = 0; i < (TABLES_DEPTH - level); i++) { mask <<= OFFSET_WIDTH; }
-//    printf("mask for level %d is %lu\n", level, mask);
+//    printf("mask for [%d,%d] is %lu\n", a, b, mask);
     return mask;
 }
 
@@ -247,12 +247,14 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
     uint64_t restoredPageIndex = virtualAddress & ~OFFSET_WIDTH;
     restoredPageIndex = restoredPageIndex >> OFFSET_WIDTH;
     uint64_t pageOffset = virtualAddress & ((1 << OFFSET_WIDTH) - 1);
+    printf("Beginning traversing from root\n");
     for (int level = 0; level < TABLES_DEPTH; level++) {
         /* get relevant bits from virtual address */
         int bitcount = VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH;
-        int a = bitcount - OFFSET_WIDTH * (level + 1);
+        int a = bitcount - OFFSET_WIDTH * (level + 2);
         int b = bitcount - 1 - OFFSET_WIDTH * (level);
-        int offset = virtualAddress & getOffsetMask(a, b);
+        uint64_t mask = getOffsetMask(a, b);
+        uint64_t offset = restoredPageIndex & mask;
         /* shift bits to the right to get actual offset */
         offset >>= (VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH * (level + 2));
         /* get next frame index */
@@ -268,6 +270,7 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
         } else {
             frameIndex = nextFrameIndex;
         }
+        printf("will now move to frame %d\n", nextFrameIndex);
         prevFrameIndex = frameIndex;
     }
     /* restore called page to RAM */
