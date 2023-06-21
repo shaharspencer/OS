@@ -23,3 +23,5 @@ int VMread(uint64_t virtualAddress, word_t* value);
  * address for any reason)
  */
 int VMwrite(uint64_t virtualAddress, word_t value);
+
+void print_tree (uint64_t frame, int depth);

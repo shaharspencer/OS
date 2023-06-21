@@ -5,6 +5,29 @@
 // TODO add const where relevant
 // TODO make sure types are consistent
 
+#include <iostream>
+#include <vector>
+void print_tree (uint64_t frame, int depth)
+{
+    std::vector<word_t> values;
+    word_t val = 0;
+    std::cout << "******FRAME " << frame << " is leaf: " << ((depth == TABLES_DEPTH)?"yes":"no") << "******\n";
+    for (int i = 0; i < PAGE_SIZE; ++i)
+    {
+        PMread ((PAGE_SIZE * frame) + i, &val);
+        std::cout << " " << val << " ";
+        values.push_back (val);
+    }
+    std::cout << std::endl;
+    for (const auto &value : values)
+    {
+        if (value != 0 && depth != TABLES_DEPTH)
+        {
+            print_tree (value, depth + 1);
+        }
+    }
+}
+
 void trimFrame(word_t parentFrameIndex, word_t childFrameIndex) {
     word_t value;
     /* iteratively look for the child frame index in the parent frame */
@@ -19,7 +42,7 @@ void trimFrame(word_t parentFrameIndex, word_t childFrameIndex) {
 }
 
 void findEmptyTableHelper(int level, word_t prevFrameIndex, word_t frameIndex,
-                          word_t *parentFrameIndex, word_t *result) {
+                          const word_t *parentFrameIndex, word_t *result) {
     /* if we've reached a leaf, values refer to VM hence return */
     if (level == TABLES_DEPTH) { return; }
     /* assume current frame is empty i.e. has no children.
@@ -46,7 +69,7 @@ void findEmptyTableHelper(int level, word_t prevFrameIndex, word_t frameIndex,
     if (!flag && frameIndex != prevFrameIndex) {
         /* trim frame from its parent */
         trimFrame(*parentFrameIndex, frameIndex);
-        * result = frameIndex;
+        *result = frameIndex;
     }
 }
 
@@ -82,7 +105,7 @@ void findUnusedFrameHelper(int level, word_t frameIndex, word_t *maxUsedFrameInd
     }
 }
 
-word_t findUnusedFrame(word_t frameIndex) {
+word_t findUnusedFrame(const word_t frameIndex) {
     word_t maxUsedFrameIndex = frameIndex;
     /* recursively look for max unused frame index, starting from the root table 0 */
     findUnusedFrameHelper(0, 0, &maxUsedFrameIndex);
@@ -106,18 +129,18 @@ int cyclicDistance(const int pageIndex, const int otherPageIndex) {
 // pageToE = max_cyc_page_n;
 
 void findFrameToEvictHelper(int level, word_t prevFrameIndex, word_t frameIndex,
-                            word_t* frameToEvict, word_t* parentFrameIndex,
-                            int pageNumber, const int pageToRestore, int* pageToEvict, int bits) {
+                            word_t *frameToEvict, word_t *parentFrameIndex,
+                            int pageNumber, const int pageToRestore, int *pageToEvict, int bits) {
     /* upon reaching a leaf, compare its cyclic distance to current farthest.
      * if distance is larger, update accordingly */
     if (level == TABLES_DEPTH) {
         /* if no page was selected yet, or if current page's cyclic distance
          * is larger than previous, select current page */
         if (*frameToEvict == 0 || (cyclicDistance(pageNumber, pageToRestore) >
-            cyclicDistance(*pageToEvict, pageToRestore))) {
-                *frameToEvict = frameIndex;
-                *pageToEvict = pageNumber;
-                *parentFrameIndex = prevFrameIndex;
+                                   cyclicDistance(*pageToEvict, pageToRestore))) {
+            *frameToEvict = frameIndex;
+            *pageToEvict = pageNumber;
+            *parentFrameIndex = prevFrameIndex;
         }
         return;
     }
@@ -128,7 +151,7 @@ void findFrameToEvictHelper(int level, word_t prevFrameIndex, word_t frameIndex,
         if (nextFrameIndex) {
             /* construct page number by offset */
             pageNumber <<= (bits - OFFSET_WIDTH >= OFFSET_WIDTH)
-                    ? OFFSET_WIDTH : (bits - OFFSET_WIDTH);
+                           ? OFFSET_WIDTH : (bits - OFFSET_WIDTH);
             pageNumber += offset;
             /* continue recursion */
             findFrameToEvictHelper(++level, frameIndex, nextFrameIndex, frameToEvict,
@@ -162,6 +185,7 @@ void VMinitialize() {
 uint64_t getOffsetMask(int level) {
     uint64_t mask = (1LL << OFFSET_WIDTH) - 1;
     for (int i = 0; i < (TABLES_DEPTH - level); i++) { mask <<= OFFSET_WIDTH; }
+//    printf("mask for level %d is %lu\n", level, mask);
     return mask;
 }
 
@@ -176,18 +200,24 @@ void prepareForTreeMutation(word_t frameIndex, word_t *nextFrameIndex) {
     *nextFrameIndex = 0;
 }
 
-void mutateTree(word_t prevFrameIndex, word_t frameIndex, int offset,
+void mutateTree(word_t prevFrameIndex, word_t* frameIndex, int offset,
                 uint64_t pageToRestore, int level) {
     /* first look for an empty table. if found, update accordingly */
     word_t emptyTable = findEmptyTable(prevFrameIndex);
     if (emptyTable != -1) {
         PMwrite(prevFrameIndex * PAGE_SIZE + offset, emptyTable);
+        printf("found empty table at %d\nnew tree:\n", emptyTable);
+        print_tree(0, 0);
         return;
     }
     /* next, look for an unused frame. if found, update accordingly */
-    word_t unusedFrameIndex = findUnusedFrame(frameIndex) + 1;
+    word_t unusedFrameIndex = findUnusedFrame(*frameIndex) + 1;
     if (unusedFrameIndex < NUM_FRAMES) {
         PMwrite(prevFrameIndex * PAGE_SIZE + offset, unusedFrameIndex);
+        (*frameIndex)++;
+        printf("found unused frame at %d\n"
+               "parent frame is %d offset is %d\nnew tree:\n", unusedFrameIndex, prevFrameIndex, offset);
+        print_tree(0, 0);
         return;
     }
     /* finally, evict a frame by max cyclic distance policy */
@@ -195,19 +225,21 @@ void mutateTree(word_t prevFrameIndex, word_t frameIndex, int offset,
     /* if evicted frame isn't a leaf, nullify it */
     if (level != TABLES_DEPTH - 1) { nullifyFrame(frameToEvict); }
     PMwrite(prevFrameIndex * PAGE_SIZE + offset, frameToEvict);
+    printf("evicted frame at %d\nnew tree:\n", frameToEvict);
+    print_tree(0, 0);
 }
 
 uint64_t virtualToPhysical(uint64_t virtualAddress) {
     word_t frameIndex = 0, nextFrameIndex = 0, prevFrameIndex = 0;
-    uint64_t offset = 0;
     /* calculate the page number which will be restored to RAM */
     uint64_t restoredPageIndex = virtualAddress & ~OFFSET_WIDTH;
     restoredPageIndex = restoredPageIndex >> OFFSET_WIDTH;
+    uint64_t pageOffset = virtualAddress & getOffsetMask(TABLES_DEPTH);
     for (int level = 0; level < TABLES_DEPTH; level++) {
         /* get relevant bits from virtual address */
-        offset = virtualAddress & getOffsetMask(level);
+        int offset = virtualAddress & getOffsetMask(level);
         /* shift bits to the right to get actual offset */
-        offset >>= (VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH * (level + 2));
+        offset >>= (VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH * (level + 1));
         /* get next frame index */
         PMread(frameIndex * PAGE_SIZE + offset, &nextFrameIndex);
         /* if next frame index exceeds available RAM, prepare for tree mutation */
@@ -216,7 +248,8 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
         }
         /* if tree mutation is needed, execute it, otherwise continue */
         if (nextFrameIndex == 0) {
-            mutateTree(prevFrameIndex, frameIndex, offset, restoredPageIndex, level);
+            printf("using offset %d\n", offset);
+            mutateTree(prevFrameIndex, &frameIndex, offset, restoredPageIndex, level);
         } else {
             frameIndex = nextFrameIndex;
         }
@@ -224,7 +257,8 @@ uint64_t virtualToPhysical(uint64_t virtualAddress) {
     }
     /* restore called page to RAM */
     PMrestore(prevFrameIndex, restoredPageIndex);
-    return (frameIndex * PAGE_SIZE + offset);
+    printf("physical memory address: %d\n", frameIndex);
+    return (frameIndex * PAGE_SIZE + pageOffset);
 }
 
 /* Reads a word from the given virtual address
