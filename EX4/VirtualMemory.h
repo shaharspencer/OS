@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MemoryConstants.h"
+#include "YaaraConstants.h"
 
 /*
  * Initialize the virtual memory.
@@ -24,4 +24,4 @@ int VMread(uint64_t virtualAddress, word_t* value);
  */
 int VMwrite(uint64_t virtualAddress, word_t value);
 
-void print_tree (uint64_t frame, int depth);
+//void print_tree (uint64_t frame, int depth);

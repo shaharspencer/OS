@@ -4,10 +4,11 @@ project(OS)
 set(CMAKE_CXX_STANDARD 11)
 
 add_executable(test
-        MemoryConstants.h
+#        MemoryConstants.h
         PhysicalMemory.h
         PhysicalMemory.cpp
-        SimpleTest.cpp
+        YaaraConstants.h
+        YaaraTest.cpp
         VirtualMemory.h
 
         VirtualMemory.cpp
