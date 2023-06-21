@@ -1,6 +1,5 @@
 CXX = g++
 
-#SRCS = Barrier.h Barrier.cpp MapReduceFramework.cpp
 SRCS = VirtualMemory.cpp
 OBJS = $(SRCS:.cpp=.o)
 
